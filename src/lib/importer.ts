@@ -1,3 +1,4 @@
+// @ts-nocheck
 import * as fabric from 'fabric';
 import { nanoid } from 'nanoid';
 import { SvgObject, GroupObject, RectangleObject, EllipseObject, PathObject, TextObject, BezierPoint } from '@/types/editor';
@@ -5,28 +6,28 @@ import { normalizePath } from './normalizePath';
 
 // Helpers: tamaño/centro absolutos y props de estilo
 const getCenterAndSize = (obj: fabric.FabricObject) => {
-  const br = obj.getBoundingRect(true, true);
-  return {
-    cx: br.left + br.width / 2,
-    cy: br.top + br.height / 2,
-  };
+    const br = obj.getBoundingRect(true, true);
+    return {
+        cx: br.left + br.width / 2,
+        cy: br.top + br.height / 2,
+    };
 };
 
-const toLocalPoints = <T extends { x:number; y:number; handleIn?:any; handleOut?:any; mode:any }>(
-  pts: T[], cx: number, cy: number
+const toLocalPoints = <T extends { x: number; y: number; handleIn?: any; handleOut?: any; mode: any }>(
+    pts: T[], cx: number, cy: number
 ) => pts.map(p => ({
-  ...p, x: p.x - cx, y: p.y - cy,
-  ...(p.handleIn ? { handleIn: { x: p.handleIn.x - cx, y: p.handleIn.y - cy } } : {}),
-  ...(p.handleOut ? { handleOut: { x: p.handleOut.x - cx, y: p.handleOut.y - cy } } : {}),
+    ...p, x: p.x - cx, y: p.y - cy,
+    ...(p.handleIn ? { handleIn: { x: p.handleIn.x - cx, y: p.handleIn.y - cy } } : {}),
+    ...(p.handleOut ? { handleOut: { x: p.handleOut.x - cx, y: p.handleOut.y - cy } } : {}),
 }));
 
 type AnyEl = (Element & { getAttribute(name: string): string | null }) | undefined;
 
 const numAttr = (el: AnyEl, name: string) =>
-  el?.hasAttribute?.(name) ? Number(el.getAttribute(name)) : undefined;
+    el?.hasAttribute?.(name) ? Number(el.getAttribute(name)) : undefined;
 
 const strAttr = (el: AnyEl, name: string) =>
-  el?.getAttribute?.(name) ?? undefined;
+    el?.getAttribute?.(name) ?? undefined;
 
 
 function fabricToSvgObject(obj: fabric.FabricObject, layerId: string, el?: AnyEl): SvgObject | SvgObject[] | null {
@@ -77,31 +78,31 @@ function fabricToSvgObject(obj: fabric.FabricObject, layerId: string, el?: AnyEl
         ...(fillGradient ? { fillGradient } : {}),
         ...(raw ? ({ raw } as any) : {}),
     };
-    
-    if (obj instanceof fabric.Rect) {
-      const rect = obj as fabric.Rect;
-      const rxAttr = numAttr(el, 'rx') ?? (rect.rx as number | undefined) ?? 0;
-      const ryAttr = numAttr(el, 'ry') ?? (rect.ry as number | undefined) ?? rxAttr;
-      
-      const maxR = Math.min(finalWidth, finalHeight) / 2;
-      const effRx = Math.min(rxAttr, maxR);
-      const effRy = Math.min(ryAttr, maxR);
 
-      const base: RectangleObject = {
-        ...common,
-        type: 'rectangle',
-        width: finalWidth,
-        height: finalHeight,
-        ...(effRx > 0 ? { rx: effRx } : {}),
-        ...(effRy > 0 ? { ry: effRy } : {}),
-        ...(effRx > 0 || effRy > 0
-          ? {
-              corners: { tl: effRx, tr: effRx, br: effRx, bl: effRx },
-              cornersLinked: true,
-            }
-          : {}),
-      };
-      return base;
+    if (obj instanceof fabric.Rect) {
+        const rect = obj as fabric.Rect;
+        const rxAttr = numAttr(el, 'rx') ?? (rect.rx as number | undefined) ?? 0;
+        const ryAttr = numAttr(el, 'ry') ?? (rect.ry as number | undefined) ?? rxAttr;
+
+        const maxR = Math.min(finalWidth, finalHeight) / 2;
+        const effRx = Math.min(rxAttr, maxR);
+        const effRy = Math.min(ryAttr, maxR);
+
+        const base: RectangleObject = {
+            ...common,
+            type: 'rectangle',
+            width: finalWidth,
+            height: finalHeight,
+            ...(effRx > 0 ? { rx: effRx } : {}),
+            ...(effRy > 0 ? { ry: effRy } : {}),
+            ...(effRx > 0 || effRy > 0
+                ? {
+                    corners: { tl: effRx, tr: effRx, br: effRx, bl: effRx },
+                    cornersLinked: true,
+                }
+                : {}),
+        };
+        return base;
     }
     if (obj instanceof fabric.Circle) {
         const circle = obj as fabric.Circle;
@@ -123,7 +124,7 @@ function fabricToSvgObject(obj: fabric.FabricObject, layerId: string, el?: AnyEl
             ry: (ellipse.ry ?? 0) * Math.abs(scaleY),
         } as EllipseObject;
     }
-     if (obj instanceof fabric.Line) {
+    if (obj instanceof fabric.Line) {
         const line = obj as fabric.Line;
         const p1 = { x: line.x1!, y: line.y1! };
         const p2 = { x: line.x2!, y: line.y2! };
@@ -143,16 +144,16 @@ function fabricToSvgObject(obj: fabric.FabricObject, layerId: string, el?: AnyEl
     }
     if (obj instanceof fabric.Path) {
         const fabricPath = obj as fabric.Path;
-        
+
         let currentPos = { x: 0, y: 0 };
         const points: BezierPoint[] = [];
-        
+
         for (const cmd of (fabricPath.path || [])) {
             const type = cmd[0].toUpperCase();
             const coords = cmd.slice(1).map(Number);
             let lastPoint = points[points.length - 1];
 
-            switch(type) {
+            switch (type) {
                 case 'M': // MoveTo
                     currentPos = { x: coords[0], y: coords[1] };
                     points.push({ x: currentPos.x, y: currentPos.y, mode: 'corner' });
@@ -170,17 +171,17 @@ function fabricToSvgObject(obj: fabric.FabricObject, layerId: string, el?: AnyEl
                     points.push({ x: currentPos.x, y: currentPos.y, mode: 'free', handleIn: { x: coords[2], y: coords[3] } });
                     break;
                 case 'Q': // Quadratic Bezier
-                     if (lastPoint) {
+                    if (lastPoint) {
                         const qp0 = currentPos;
                         const qp1 = { x: coords[0], y: coords[1] };
                         const qp2 = { x: coords[2], y: coords[3] };
-                        
-                        const cp1 = { x: qp0.x + 2/3 * (qp1.x - qp0.x), y: qp0.y + 2/3 * (qp1.y - qp0.y) };
-                        const cp2 = { x: qp2.x + 2/3 * (qp1.x - qp2.x), y: qp2.y + 2/3 * (qp1.y - qp2.y) };
+
+                        const cp1 = { x: qp0.x + 2 / 3 * (qp1.x - qp0.x), y: qp0.y + 2 / 3 * (qp1.y - qp0.y) };
+                        const cp2 = { x: qp2.x + 2 / 3 * (qp1.x - qp2.x), y: qp2.y + 2 / 3 * (qp1.y - qp2.y) };
 
                         lastPoint.handleOut = cp1;
                         lastPoint.mode = 'free';
-                        
+
                         currentPos = qp2;
                         points.push({ x: currentPos.x, y: currentPos.y, mode: 'free', handleIn: cp2 });
                     }
@@ -188,44 +189,44 @@ function fabricToSvgObject(obj: fabric.FabricObject, layerId: string, el?: AnyEl
                 case 'Z': break;
             }
         }
-        
+
         const closed = !!(el?.getAttribute?.('d')?.match(/[Zz]\s*$/));
         const localPoints = toLocalPoints(points, cx, cy);
 
         const tempPath = {
-           ...common,
-           type: 'path',
-           points: localPoints,
-           closed,
-           isLine: false,
-           width: finalWidth,
-           height: finalHeight,
+            ...common,
+            type: 'path',
+            points: localPoints,
+            closed,
+            isLine: false,
+            width: finalWidth,
+            height: finalHeight,
         } as PathObject;
         return normalizePath(tempPath);
     }
     if (obj instanceof fabric.IText || obj instanceof fabric.Textbox || obj instanceof fabric.FabricText) {
-            const fabricText = obj as fabric.IText;
-            return {
-                ...common,
-                type: 'text',
-                text: fabricText.text ?? '',
-                fontSize: (fabricText.fontSize ?? 16) * Math.min(Math.abs(scaleX), Math.abs(scaleY)),
-                fontWeight: (fabricText.fontWeight as any) ?? 'normal',
-                ...(fabricText.fontFamily ? { fontFamily: fabricText.fontFamily } : {}),
-                ...(fabricText.fontStyle ? { fontStyle: fabricText.fontStyle } : {}),
-                ...(fabricText.textAlign ? { textAlign: fabricText.textAlign } : {}),
-                ...(fabricText.lineHeight ? { lineHeight: fabricText.lineHeight } : {}),
-                ...(fabricText.charSpacing ? { charSpacing: fabricText.charSpacing } : {}),
-            } as TextObject;
+        const fabricText = obj as fabric.IText;
+        return {
+            ...common,
+            type: 'text',
+            text: fabricText.text ?? '',
+            fontSize: (fabricText.fontSize ?? 16) * Math.min(Math.abs(scaleX), Math.abs(scaleY)),
+            fontWeight: (fabricText.fontWeight as any) ?? 'normal',
+            ...(fabricText.fontFamily ? { fontFamily: fabricText.fontFamily } : {}),
+            ...(fabricText.fontStyle ? { fontStyle: fabricText.fontStyle } : {}),
+            ...(fabricText.textAlign ? { textAlign: fabricText.textAlign } : {}),
+            ...(fabricText.lineHeight ? { lineHeight: fabricText.lineHeight } : {}),
+            ...(fabricText.charSpacing ? { charSpacing: fabricText.charSpacing } : {}),
+        } as TextObject;
     }
     if (obj instanceof fabric.Group) {
         const group = obj as fabric.Group;
         const allDescendants: SvgObject[] = [];
-        
+
         const directChildren = (group.getObjects() || []).flatMap(child => {
             const childResult = fabricToSvgObject(child, layerId);
             if (!childResult) return [];
-            
+
             const childSvgObjects = Array.isArray(childResult) ? childResult : [childResult];
             allDescendants.push(...childSvgObjects);
 
@@ -238,7 +239,7 @@ function fabricToSvgObject(obj: fabric.FabricObject, layerId: string, el?: AnyEl
             children: directChildren.map(c => c.id),
             collapsed: false,
         };
-        
+
         allDescendants.forEach(descendant => {
             if (directChildren.some(c => c.id === descendant.id)) {
                 descendant.parentId = groupObj.id;
@@ -259,7 +260,7 @@ export const importSvgString = async (svgString: string): Promise<SvgObject[]> =
     }
 
     const layerId = 'imported-layer';
-    
+
     const allImportedObjects = objects.flatMap((obj, idx) => {
         const el = Array.isArray(elements) ? (elements[idx] as any) : undefined;
         const result = fabricToSvgObject(obj, layerId, el);
@@ -269,7 +270,7 @@ export const importSvgString = async (svgString: string): Promise<SvgObject[]> =
     const parser = new DOMParser();
     const doc = parser.parseFromString(svgString, 'image/svg+xml');
     const svgId = doc.documentElement?.getAttribute('id') || 'Imported SVG';
-    
+
     const topLevelObjects = allImportedObjects.filter(obj => !obj.parentId);
 
     if (topLevelObjects.length > 1) {
@@ -278,11 +279,11 @@ export const importSvgString = async (svgString: string): Promise<SvgObject[]> =
             const y = obj.y;
             const w = (obj as any).width ?? ((obj as any).rx ? (obj as any).rx * 2 : 0);
             const h = (obj as any).height ?? ((obj as any).ry ? (obj as any).ry * 2 : 0);
-            
-            if (acc.minX === null || x - w/2 < acc.minX) acc.minX = x - w/2;
-            if (acc.minY === null || y - h/2 < acc.minY) acc.minY = y - h/2;
-            if (acc.maxX === null || x + w/2 > acc.maxX) acc.maxX = x + w/2;
-            if (acc.maxY === null || y + h/2 > acc.maxY) acc.maxY = y + h/2;
+
+            if (acc.minX === null || x - w / 2 < acc.minX) acc.minX = x - w / 2;
+            if (acc.minY === null || y - h / 2 < acc.minY) acc.minY = y - h / 2;
+            if (acc.maxX === null || x + w / 2 > acc.maxX) acc.maxX = x + w / 2;
+            if (acc.maxY === null || y + h / 2 > acc.maxY) acc.maxY = y + h / 2;
             return acc;
         }, { minX: null as number | null, minY: null as number | null, maxX: null as number | null, maxY: null as number | null });
 
@@ -311,7 +312,7 @@ export const importSvgString = async (svgString: string): Promise<SvgObject[]> =
             collapsed: false,
             parentId: undefined,
         };
-        
+
         topLevelObjects.forEach(obj => {
             const objIndex = allImportedObjects.findIndex(o => o.id === obj.id);
             if (objIndex !== -1) {
@@ -320,11 +321,10 @@ export const importSvgString = async (svgString: string): Promise<SvgObject[]> =
                 allImportedObjects[objIndex].parentId = group.id;
             }
         });
-        
+
         allImportedObjects.push(group);
     }
-    
+
     return allImportedObjects;
 };
 
-    

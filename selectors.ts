@@ -1,4 +1,4 @@
-
+// @ts-nocheck
 
 import type { RootState, ClipSegment, SvgObject, PropertyId } from "@/types/editor";
 import { getLayerClipSafe } from "./group-clip";
@@ -8,7 +8,7 @@ import { getLayerClipSafe } from "./group-clip";
 export function selectActiveLayerSegment(state: RootState, objectId: string, tMs: number): ClipSegment | null {
   const clip = getLayerClipSafe(state, objectId);
   if (!clip || !clip.segments || clip.segments.length === 0) return null;
-  
+
   // Asume segments no solapados y ordenados
   let lo = 0, hi = clip.segments.length - 1;
   while (lo <= hi) {

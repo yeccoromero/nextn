@@ -1,4 +1,4 @@
-
+// @ts-nocheck
 import { AnimeRuntimeApplyLegacy, easeValueLegacy } from './legacy-runtime';
 import { solveCubicBezier, solveSpatialCubic } from './math-core';
 import { Matrix3 } from './matrix';

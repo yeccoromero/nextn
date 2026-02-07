@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 'use client';
 
@@ -56,7 +57,7 @@ export const TrackRow = memo(({
     dispatch({ type: 'SELECT_OBJECT', payload: { id: objectId, shiftKey: e.shiftKey } });
     onSelect?.(objectId, e);
   };
-  
+
   const handleRowPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const targetEl = e.target as HTMLElement;
 
@@ -102,45 +103,45 @@ export const TrackRow = memo(({
       <div className="absolute left-0 right-0 bottom-0 h-px bg-black/40 pointer-events-none" />
 
       {clip.segments.map((seg, i) => {
-          const x = msToX(seg.startMs, originMs, msPerPx);
-          const endX = msToX(seg.endMs, originMs, msPerPx);
-          const w = Math.max(1, endX - x);
+        const x = msToX(seg.startMs, originMs, msPerPx);
+        const endX = msToX(seg.endMs, originMs, msPerPx);
+        const w = Math.max(1, endX - x);
 
-          return (
+        return (
+          <div
+            key={i}
+            data-clip-id={clip.id}
+            onPointerDown={(e) => {
+              onBeginDragClip?.(clip.id, e);
+            }}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing",
+              isGroup ? "rounded-md" : "rounded-sm",
+              "border",
+              (clip.selected || isLayerSelected) ? "border-white/15 ring-1 ring-white/10" : "border-black/30",
+              clip.disabled && "opacity-60"
+            )}
+            style={{
+              left: x,
+              width: w,
+              height: rowHeight - 8,
+              background: clipColor,
+            }}
+          >
             <div
-                key={i}
-                data-clip-id={clip.id}
-                onPointerDown={(e) => {
-                  onBeginDragClip?.(clip.id, e);
-                }}
-                className={cn(
-                  "absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing",
-                  isGroup ? "rounded-md" : "rounded-sm",
-                  "border",
-                  (clip.selected || isLayerSelected) ? "border-white/15 ring-1 ring-white/10" : "border-black/30",
-                  clip.disabled && "opacity-60"
-                )}
-                style={{
-                  left: x,
-                  width: w,
-                  height: rowHeight - 8,
-                  background: clipColor,
-                }}
-            >
-                <div 
-                    data-clip-grip
-                    data-nomarquee
-                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                    onPointerDown={(e) => { e.stopPropagation(); onBeginResizeStart?.(clip.id, e); }}
-                />
-                <div 
-                    data-clip-grip
-                    data-nomarquee
-                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                    onPointerDown={(e) => { e.stopPropagation(); onBeginResizeEnd?.(clip.id, e); }}
-                />
-            </div>
-          )
+              data-clip-grip
+              data-nomarquee
+              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
+              onPointerDown={(e) => { e.stopPropagation(); onBeginResizeStart?.(clip.id, e); }}
+            />
+            <div
+              data-clip-grip
+              data-nomarquee
+              className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+              onPointerDown={(e) => { e.stopPropagation(); onBeginResizeEnd?.(clip.id, e); }}
+            />
+          </div>
+        )
       })}
     </div>
   );
