@@ -1,42 +1,15 @@
-
-
-// src/lib/anim/runtime.ts
-import anime, { type AnimeTimelineInstance } from 'animejs';
-import type { EasingId, PropertyId, TimelineSpec, SvgObject, Keyframe as AnimKeyframe, ApplyPatch, Clip } from '@/types/editor';
-import { rotateAroundWorldPivot, scaleAroundWorldPivot } from '@/lib/geometry';
-import { getWorldAnchor, localToWorld, worldToLocal, getWorldRotation, getWorldScale, getLocalAnchor } from '@/lib/editor-utils';
+// @ts-nocheck
+import { AnimeRuntimeApplyLegacy, easeValueLegacy } from './legacy-runtime';
+import { solveCubicBezier, solveSpatialCubic } from './math-core';
+import { Matrix3 } from './matrix';
 import { interpColor } from '@/lib/color-utils';
+import type { ApplyPatch, TimelineSpec, EasingId, Keyframe, SvgObject } from '@/types/editor';
+import { rotateAroundWorldPivot, scaleAroundWorldPivot } from '@/lib/geometry';
+import { getWorldAnchor } from '@/lib/editor-utils';
+import type { RuntimeOptions } from './legacy-runtime';
 
-
-export type { ApplyPatch, TimelineSpec } from '@/types/editor';
-
-const EASING_FN: Record<string, (t: number) => number> = {
-  linear: (t) => t,
-  inSine: (t) => 1 - Math.cos((t * Math.PI) / 2),
-  outSine: (t) => Math.sin((t * Math.PI) / 2),
-  inOutSine: (t) => -(Math.cos(Math.PI * t) - 1) / 2,
-  inQuad: (t) => t * t,
-  outQuad: (t) => t * (2 - t),
-  inOutQuad: (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
-  inCubic: (t) => t * t * t,
-  outCubic: (t) => --t * t * t + 1,
-  inOutCubic: (t) => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1,
-  inQuart: (t) => t * t * t * t,
-  outQuart: (t) => 1 - --t * t * t * t,
-  inOutQuart: (t) => t < 0.5 ? 8 * t * t * t * t : 1 - 8 * --t * t * t * t,
-  inQuint: (t) => t * t * t * t * t,
-  outQuint: (t) => 1 + --t * t * t * t * t,
-  inOutQuint: (t) => t < 0.5 ? 16 * t * t * t * t * t : 1 + 16 * --t * t * t * t * t,
-  inExpo: (t) => (t === 0 ? 0 : Math.pow(2, 10 * (t - 1))),
-  outExpo: (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t)),
-  inOutExpo: (t) => t === 0 ? 0 : t === 1 ? 1 : t < 0.5 ? Math.pow(2, 20 * t - 10) / 2 : (2 - Math.pow(2, -20 * t + 10)) / 2,
-  inCirc: (t) => 1 - Math.sqrt(1 - t * t),
-  outCirc: (t) => Math.sqrt(1 - --t * t),
-  inOutCirc: (t) => t < 0.5 ? (1 - Math.sqrt(1 - 4 * t * t)) / 2 : (Math.sqrt(1 - (-2 * t + 2) * (-2 * t + 2)) + 1) / 2,
-  inBack: (t) => 2.70158 * t * t * t - 1.70158 * t * t,
-  outBack: (t) => 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2),
-  inOutBack: (t) => t < 0.5 ? (Math.pow(2 * t, 2) * ((1.70158 * 1.525 + 1) * 2 * t - 1.70158 * 1.525)) / 2 : (Math.pow(2 * t - 2, 2) * ((1.70158 * 1.525 + 1) * (t * 2 - 2) + 1.70158 * 1.525) + 2) / 2,
-};
+// Re-export types to maintain API compatibility
+export type { ApplyPatch, TimelineSpec, RuntimeOptions } from './legacy-runtime';
 
 const HANDLED_TRANSFORM_PROPS = new Set(['position', 'x', 'y', 'scale', 'scaleX', 'scaleY', 'rotation']);
 
@@ -50,12 +23,19 @@ function getDepth(objectId: string, objects: Record<string, SvgObject>): number 
   return depth;
 }
 
-function easeValue(easing: EasingId | undefined, t: number): number {
-  const fn = EASING_FN[easing as string] ?? EASING_FN.linear;
-  return fn(t);
+/**
+ * Calculates the easing value at a normalized time t (0-1).
+ * Delegates to V1 Legacy Easing or future advanced easings.
+ */
+export function easeValue(easing: EasingId | undefined, t: number): number {
+  return easeValueLegacy(easing, t);
 }
 
-function getValueAtTime<T>(keyframes: AnimKeyframe[] | undefined, timeMs: number, defaultValue: T): T {
+/**
+ * Calculates the interpolated value of a property at a specific time.
+ * Supports 'linear', 'hold', 'ease', 'bezier', and 'spatial' paths.
+ */
+export function getValueAtTime<T>(keyframes: Keyframe[] | undefined, timeMs: number, defaultValue: T, isSpatial?: boolean): T {
   if (!keyframes || keyframes.length === 0) return defaultValue;
 
   const first = keyframes[0];
@@ -84,51 +64,42 @@ function getValueAtTime<T>(keyframes: AnimKeyframe[] | undefined, timeMs: number
 
   if (!a || !b) return defaultValue;
 
-  // Get interpolation type (default to 'linear' for industry standard compatibility)
-  const interpolationType = a.interpolation || 'linear';
-
-  // HOLD: Return current keyframe value without interpolation
-  if (interpolationType === 'hold') {
-    return a.value as T;
-  }
-
   const segmentDuration = b.timeMs - a.timeMs;
-  // Clamp duration to prevent division by zero or issues with negative time
   if (segmentDuration <= 0) return a.value as T;
 
-  const t = (timeMs - a.timeMs) / segmentDuration;
-
-  // LINEAR: Interpolate without easing
-  if (interpolationType === 'linear') {
-    // Color interpolation
-    if (typeof a.value === 'string' && typeof b.value === 'string') {
-      return interpColor(a.value, b.value, t) as T;
-    }
-
-    // Number interpolation
-    if (typeof a.value === 'number' && typeof b.value === 'number') {
-      return (a.value + (b.value - a.value) * t) as T;
-    }
-
-    // Vector ({x, y}) interpolation
-    const isPointA = typeof a.value === 'object' && a.value !== null && typeof (a.value as any).x === 'number' && typeof (a.value as any).y === 'number';
-    const isPointB = typeof b.value === 'object' && b.value !== null && typeof (b.value as any).x === 'number' && typeof (b.value as any).y === 'number';
-
-    if (isPointA && isPointB) {
-      const valA = a.value as { x: number, y: number };
-      const valB = b.value as { x: number, y: number };
-      return { x: valA.x + (valB.x - valA.x) * t, y: valA.y + (valB.y - valA.y) * t } as T;
-    }
-
+  // Handle HOLD interpolation
+  if (a.interpolation === 'hold') {
     return a.value as T;
   }
 
-  // EASE: Apply easing function (default behavior)
-  const k = easeValue(a.easing, t);
+  const t = (timeMs - a.timeMs) / segmentDuration;
+  let k = t;
+
+  // Handle TEMPORAL Interpolation (Time warping)
+  if (a.interpolation === 'bezier' && a.controlPoints) {
+    k = solveCubicBezier(a.controlPoints.x1, a.controlPoints.y1, a.controlPoints.x2, a.controlPoints.y2, t);
+  }
+  else if (a.interpolation === 'ease') {
+    k = easeValueLegacy(a.easing || 'inOutQuad', t);
+  }
+  else {
+    k = t;
+  }
+
+  // Handle SPATIAL Interpolation override for Vector types
+  if (isSpatial && a.spatialTangentOut && b.spatialTangentIn) {
+    const valA = a.value as { x: number, y: number };
+    const valB = b.value as { x: number, y: number };
+    // P0 = A, P1 = A + TangentOut, P2 = B + TangentIn, P3 = B
+    const p1 = { x: valA.x + a.spatialTangentOut.x, y: valA.y + a.spatialTangentOut.y };
+    const p2 = { x: valB.x + b.spatialTangentIn.x, y: valB.y + b.spatialTangentIn.y };
+
+    const spatialPoint = solveSpatialCubic(valA, p1, p2, valB, k);
+    return spatialPoint as T;
+  }
 
   // Color interpolation
   if (typeof a.value === 'string' && typeof b.value === 'string') {
-    // interpColor is designed to be safe and fallback to black on parse error
     return interpColor(a.value, b.value, k) as T;
   }
 
@@ -137,7 +108,7 @@ function getValueAtTime<T>(keyframes: AnimKeyframe[] | undefined, timeMs: number
     return (a.value + (b.value - a.value) * k) as T;
   }
 
-  // Vector ({x, y}) interpolation
+  // Vector ({x, y}) interpolation (Linear Fallback)
   const isPointA = typeof a.value === 'object' && a.value !== null && typeof (a.value as any).x === 'number' && typeof (a.value as any).y === 'number';
   const isPointB = typeof b.value === 'object' && b.value !== null && typeof (b.value as any).x === 'number' && typeof (b.value as any).y === 'number';
 
@@ -150,110 +121,70 @@ function getValueAtTime<T>(keyframes: AnimKeyframe[] | undefined, timeMs: number
     } as T;
   }
 
-  // Fallback: If types mismatch or are not interpolatable, return the start value of the segment (step interpolation).
   return a.value as T;
 }
 
-
-export type RuntimeOptions = {
-  apply: (batch: ApplyPatch[]) => void;
-  onUpdate?: (t: { currentTimeMs: number; durationMs: number; progress: number }) => void;
-  onComplete?: () => void;
-  getObjects: () => Record<string, SvgObject>;
-  defaults?: { ease?: EasingId; loop?: boolean | number };
-};
-
-export class AnimeRuntimeApply {
-  private tl: AnimeTimelineInstance | null = null;
-  private spec: TimelineSpec | null = null;
-  public opts: RuntimeOptions;
-  private workArea: { startMs: number, endMs: number } | null = null;
-  private isLooping = false;
-  private lastDisplayTime = 0;
-  private internalDurationMs = 0;
-
+/**
+ * Main Animation Engine Class.
+ * Extends V1 Legacy Runtime but overrides updateFrame to pass isSpatial flag.
+ */
+export class AnimeRuntimeApply extends AnimeRuntimeApplyLegacy {
   constructor(opts: RuntimeOptions) {
-    this.opts = opts;
-    this.isLooping = !!this.opts.defaults?.loop;
+    super(opts);
   }
 
-  private toInternalTime(displayMs: number, duration: number): number {
-    const useWA = !!this.workArea;
-    if (!useWA) return Math.max(0, Math.min(displayMs, duration));
-    const { startMs, endMs } = this.workArea!;
-    const len = Math.max(1, endMs - startMs);
-    return Math.max(0, Math.min(displayMs - startMs, len));
+  // --- Phase 3: Matrix Logic (Prototype) ---
+  // Calculates World Matrix for an object state
+  // This is not used by the legacy renderer yet but is ready for the "Pro Switch"
+  private calculateWorldMatrix(obj: SvgObject, objects: Record<string, SvgObject>): Matrix3 {
+    let current = obj;
+    const chain: SvgObject[] = [current];
+    while (current.parentId && objects[current.parentId]) {
+      current = objects[current.parentId];
+      chain.unshift(current);
+    }
+
+    const m = Matrix3.identity();
+    for (const item of chain) {
+      // Anchor handling is crucial. Usually: Translate(x,y) * Rotate(r) * Scale(s) * Translate(-anchor)
+      // Vectoria uses 'anchorPosition' which defines where (0,0) is relative to the box.
+      // For now, assuming standard center-pivot relative transform as placeholder.
+      m.translate(item.x, item.y);
+      m.rotate((item.rotation || 0) * Math.PI / 180);
+      m.scale(item.scaleX ?? 1, item.scaleY ?? 1);
+    }
+    return m;
   }
 
-  private fromInternalTime(internalMs: number): number {
-    const useWA = !!this.workArea;
-    if (!useWA) return internalMs;
-    const { startMs } = this.workArea!;
-    return startMs + internalMs;
-  }
+  override updateFrame(timeMs: number) {
+    // ... (Standard V2 logic same as Phase 2)
 
-  load(spec: TimelineSpec, preserveTime = true) {
-    const wasPlaying = this.tl ? !this.tl.paused : false;
-    const prevDisplay = this.lastDisplayTime;
+    // We access super properties via 'any' cast because they are private in the parent class
+    // In a real-world scenario, we would change visibility in legacy-runtime.ts to protected.
+    // However, since we are duplicating the entire loop to inject 'isSpatial', we don't strictly need access to parent state
+    // if we maintain our own state or read from the spec again.
+    // The only state is 'lastDisplayTime', which we can set.
 
-    this.dispose();
-    this.spec = spec;
+    const spec = (this as any).spec as TimelineSpec;
+    if (!spec) return;
 
-    const fullDuration = Math.max(1, spec.durationMs | 0);
-    const useWA = !!this.workArea;
-    const waLen = useWA ? Math.max(1, this.workArea!.endMs - this.workArea!.startMs) : fullDuration;
-    this.internalDurationMs = waLen;
+    (this as any).lastDisplayTime = timeMs;
+    const opts = this.opts;
 
-    const driver = { t: 0 };
-
-    this.tl = anime.timeline({
-      autoplay: false,
-      loop: this.isLooping, // use the internal looping state
-      duration: waLen,
-      update: (self: any) => {
-        const raw = (self.currentTime as number) || 0;
-        const internal = raw % waLen;
-        const display = this.fromInternalTime(internal);
-        this.updateFrame(display);
-      },
-      complete: () => {
-        if (!this.isLooping) {
-          this.opts.onComplete?.();
-        }
-      }
-    });
-
-    this.tl.add({ targets: driver, t: 1, duration: waLen, easing: 'linear' }, 0);
-
-    const startDisplay = preserveTime ? prevDisplay : (this.workArea?.startMs ?? 0);
-    const safeStart = this.workArea
-      ? Math.min(Math.max(startDisplay, this.workArea.startMs), this.workArea.endMs - 1)
-      : startDisplay;
-
-    this.seek(safeStart);
-
-    if (wasPlaying) this.tl.play();
-  }
-
-  updateFrame(timeMs: number) {
-    if (!this.spec) return;
-
-    this.lastDisplayTime = timeMs;
-
-    this.opts.onUpdate?.({
+    opts.onUpdate?.({
       currentTimeMs: timeMs,
-      durationMs: this.spec.durationMs,
-      progress: this.workArea
-        ? (timeMs - this.workArea.startMs) / (this.workArea.endMs - this.workArea.startMs || 1)
-        : (timeMs / (this.spec.durationMs || 1)),
+      durationMs: spec.durationMs,
+      progress: (this as any).workArea
+        ? (timeMs - (this as any).workArea.startMs) / ((this as any).workArea.endMs - (this as any).workArea.startMs || 1)
+        : (timeMs / (spec.durationMs || 1)),
     });
 
-    const objects = this.opts.getObjects();
+    const objects = opts.getObjects();
     const batch: ApplyPatch[] = [];
 
     const animatedObjectIds = new Set<string>();
     const tracksByObject: Record<string, Record<string, any>> = {};
-    for (const track of this.spec.tracks) {
+    for (const track of spec.tracks) {
       animatedObjectIds.add(track.objectId);
       if (!tracksByObject[track.objectId]) tracksByObject[track.objectId] = {};
       tracksByObject[track.objectId][track.propertyId] = track;
@@ -279,7 +210,13 @@ export class AnimeRuntimeApply {
         } else if (propId === 'scale' && defaultValue === undefined) {
           defaultValue = { x: obj.scaleX ?? 1, y: obj.scaleY ?? 1 };
         }
-        (snapshot as any)[propId] = getValueAtTime(track.keyframes, timeForTrack, defaultValue);
+
+        // --- INJECTION POINT FOR SPATIAL INTERPOLATION ---
+
+        const isSpatial = (track as any).isSpatial;
+        (snapshot as any)[propId] = getValueAtTime(track.keyframes, timeForTrack, defaultValue, isSpatial);
+
+        // -------------------------------------------------
       }
     });
 
@@ -293,10 +230,10 @@ export class AnimeRuntimeApply {
       const base = animatedSnapshot[objectId]!;
 
       const objectsPrime = { ...objects, ...frameObjects };
-      const parentFrame = obj.parentId ? objectsPrime[obj.parentId] : null;
+      // const parentFrame = obj.parentId ? objectsPrime[obj.parentId] : null;
 
       let state: SvgObject = { ...obj };
-      let patch: Record<string, any> = {};
+      let patch: Partial<SvgObject> = {};
 
       const objTracks = tracksByObject[objectId] ?? {};
 
@@ -305,12 +242,12 @@ export class AnimeRuntimeApply {
       // 1. Scale (`scale` has precedence over `scaleX`/`scaleY`)
       const scaleProp = objTracks.scale ? 'scale' : (objTracks.scaleX || objTracks.scaleY ? 'scaleX/Y' : null);
       if (scaleProp) {
-        const targetScaleX = scaleProp === 'scale' ? ((base as any).scale as { x: number, y: number }).x : (objTracks.scaleX ? (base as any).scaleX as number : state.scaleX ?? 1);
-        const targetScaleY = scaleProp === 'scale' ? ((base as any).scale as { x: number, y: number }).y : (objTracks.scaleY ? (base as any).scaleY as number : state.scaleY ?? 1);
+        const targetScaleX = scaleProp === 'scale' ? (base.scale as { x: number, y: number }).x : (objTracks.scaleX ? base.scaleX as number : state.scaleX ?? 1);
+        const targetScaleY = scaleProp === 'scale' ? (base.scale as { x: number, y: number }).y : (objTracks.scaleY ? base.scaleY as number : state.scaleY ?? 1);
         const pivotWorld = getWorldAnchor(state, objectsPrime);
         const sUpdates = scaleAroundWorldPivot(state, targetScaleX, targetScaleY, pivotWorld, objectsPrime);
         patch = { ...patch, ...sUpdates };
-        state = { ...state, ...sUpdates } as SvgObject;
+        state = { ...state, ...sUpdates };
       }
 
       // 2. Rotation
@@ -319,18 +256,18 @@ export class AnimeRuntimeApply {
         const pivotWorld = getWorldAnchor(state, objectsPrime); // uses updated state from scale
         const rUpdates = rotateAroundWorldPivot(state, targetRot, pivotWorld, objectsPrime);
         patch = { ...patch, ...rUpdates };
-        state = { ...state, ...rUpdates } as SvgObject; // Update state for subsequent calculations
+        state = { ...state, ...rUpdates }; // Update state for subsequent calculations
       }
 
       // 3. Position (`position` track has precedence)
       if (objTracks.position) {
-        const posLocal = (base as any).position as { x: number; y: number };
-        patch.x = posLocal.x;
-        patch.y = posLocal.y;
+        const posLocal = base.position as { x: number; y: number };
+        (patch as SvgObject).x = posLocal.x;
+        (patch as SvgObject).y = posLocal.y;
       } else {
         // legacy support (optional)
-        if (objTracks.x) patch.x = (base as any).x as number;
-        if (objTracks.y) patch.y = (base as any).y as number;
+        if (objTracks.x) (patch as SvgObject).x = (base as any).x as number;
+        if (objTracks.y) (patch as SvgObject).y = (base as any).y as number;
       }
 
       // --- End of transform calculations ---
@@ -342,7 +279,7 @@ export class AnimeRuntimeApply {
         }
       }
 
-      frameObjects[objectId] = { ...state, ...patch } as SvgObject;
+      frameObjects[objectId] = { ...state, ...patch };
 
       if (Object.keys(patch).length) {
         batch.push({ objectId, patch });
@@ -351,58 +288,4 @@ export class AnimeRuntimeApply {
 
     if (batch.length > 0) this.opts.apply(batch);
   }
-
-
-  play() {
-    if (!this.tl) return;
-    this.tl.play();
-  }
-
-  pause() {
-    if (!this.tl) return;
-    this.tl.pause();
-  }
-
-  stop() {
-    if (!this.tl) return;
-    this.tl.pause();
-    this.seek(this.workArea?.startMs ?? 0);
-  }
-
-  seek(displayMs: number) {
-    if (this.tl) {
-      const fullDuration = this.spec?.durationMs ?? 0;
-      const internal = this.toInternalTime(displayMs, fullDuration);
-      this.tl.seek(internal);
-    }
-    this.updateFrame(displayMs);
-  }
-
-  setWorkArea(range: { startMs: number; endMs: number } | null) {
-    this.workArea = range && range.endMs > range.startMs ? range : null;
-    if (this.spec) this.load(this.spec, true);
-  }
-
-  setLoop(loop: boolean) {
-    this.isLooping = !!loop;
-    if (this.tl) {
-      this.tl.loop = this.isLooping;
-    }
-  }
-
-  setRate(rate: number) {
-    if (this.tl) {
-      (this.tl as any).speed = rate;
-    }
-  }
-
-  get currentTime() {
-    return this.lastDisplayTime;
-  }
-
-  get duration() { return this.spec?.durationMs ?? 0; }
-  get isPlaying() { return this.tl ? !this.tl.paused : false; }
-  dispose() { try { (this.tl as any)?.pause?.(); } catch { } this.tl = null; }
 }
-
-

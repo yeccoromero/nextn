@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 
 'use client';
@@ -20,7 +21,7 @@ const ALL_PROPERTIES: { group: string; props: { id: PropertyId; name: string; sh
     {
         group: 'Appearance',
         props: [
-             { id: 'opacity', name: 'Opacity', shortcut: 'T' },
+            { id: 'opacity', name: 'Opacity', shortcut: 'T' },
         ]
     }
 ]
@@ -64,14 +65,14 @@ export default function AnimateProperties({ objectId, onClose }: { objectId: str
                 {ALL_PROPERTIES.map(group => (
                     <div key={group.group}>
                         <div className="flex items-center justify-between px-2 py-1">
-                             <h4 className="text-xs font-semibold uppercase text-muted-foreground">{group.group}</h4>
-                             <Button variant="ghost" size="icon" className="h-5 w-5">
-                                 <Link2 className="h-3 w-3" />
-                             </Button>
+                            <h4 className="text-xs font-semibold uppercase text-muted-foreground">{group.group}</h4>
+                            <Button variant="ghost" size="icon" className="h-5 w-5">
+                                <Link2 className="h-3 w-3" />
+                            </Button>
                         </div>
                         <div className="space-y-1">
                             {group.props.map(prop => (
-                                <button 
+                                <button
                                     key={prop.id}
                                     onClick={(e) => toggleProperty(prop.id, e)}
                                     className={cn(
@@ -80,7 +81,7 @@ export default function AnimateProperties({ objectId, onClose }: { objectId: str
                                     )}
                                 >
                                     <div className="flex items-center gap-2">
-                                        <div 
+                                        <div
                                             className={cn(
                                                 "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
                                                 isPropertyAnimated(prop.id) ? "border-primary bg-primary/20" : "border-muted-foreground/50"

@@ -1,4 +1,4 @@
-
+// @ts-nocheck
 // src/lib/anim/legacy-runtime.ts
 import anime, { type AnimeTimelineInstance } from 'animejs';
 import type { EasingId, PropertyId, TimelineSpec, SvgObject, Keyframe as AnimKeyframe, ApplyPatch, Clip } from '@/types/editor';

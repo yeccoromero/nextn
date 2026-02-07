@@ -7,7 +7,7 @@ import { useRef, useState, type PointerEvent, type MouseEvent, useEffect, useMem
 import { useEditor } from '@/context/editor-context';
 import type { SvgObject, PathObject, BezierPoint, Tool, ResizeHandle, GroupObject, BoundingBox, SnapLine, Fill, LinearGradientFill, RadialGradientFill, GradientStop, PropertyId, RectangleObject, CopiedKeyframe, ClipboardEnvelope, LayerTrack } from '@/types/editor';
 import { nanoid } from 'nanoid';
-import { getOverallBBox, rotatePoint, isSelectionConstrained, getHoveredInteraction, getRotatedCursor, getVisualBoundingBox, buildPathD, getWorldAnchor, getSmartSnap, localToWorld, worldToLocal, ENFORCE_EDGE_CLAMP, getWorldRotation, getOrientedBoundingBox } from '@/lib/editor-utils';
+import { getOverallBBox, rotatePoint, isSelectionConstrained, getHoveredInteraction, getRotatedCursor, getVisualBoundingBox, buildPathD, getWorldAnchor, getSmartSnap, localToWorld, worldToLocal, ENFORCE_EDGE_CLAMP, getWorldRotation } from '@/lib/editor-utils';
 import { transformObjectByResize } from '@/lib/geometry';
 import { clipboard } from '@/lib/clipboard';
 import { getSvgPointFromClient, hitTestAtPoint } from '@/lib/hit-detection-utils';
