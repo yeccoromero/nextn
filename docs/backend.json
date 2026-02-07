@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "Project": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Project",
+      "description": "Represents a user's project, containing metadata like name and ownership.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "The UID of the user who owns the project."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the project."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the project was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the project was last updated."
+        },
+        "schemaVersion": {
+          "type": "number",
+          "description": "The schema version of the project data."
+        }
+      },
+      "required": ["ownerId", "name", "createdAt", "updatedAt"]
+    },
+    "ProjectDocument": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Project Document",
+      "description": "Contains the serialized state of the editor for a specific version of a project.",
+      "type": "object",
+      "properties": {
+        "snapshot": {
+          "type": "string",
+          "description": "The JSON stringified snapshot of the editor state."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the document was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the document was last updated."
+        },
+        "schemaVersion": {
+          "type": "number",
+          "description": "The schema version of the document data."
+        }
+      },
+      "required": ["snapshot", "createdAt", "updatedAt"]
+    },
+    "ProjectMember": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Project Member",
+      "description": "Defines a user's role within a project.",
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["owner", "editor", "viewer"],
+          "description": "The role of the user in the project."
+        }
+      },
+      "required": ["role"]
+    }
+  },
+  "auth": {
+    "providers": ["password", "google.com"]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/projects/{projectId}",
+        "definition": {
+          "entityName": "Project",
+          "schema": {
+            "$ref": "#/entities/Project"
+          },
+          "description": "Stores the core metadata for each project."
+        }
+      },
+      {
+        "path": "/projects/{projectId}/docs/{docId}",
+        "definition": {
+          "entityName": "ProjectDocument",
+          "schema": {
+            "$ref": "#/entities/ProjectDocument"
+          },
+          "description": "Stores the actual editor content (snapshots) for a project."
+        }
+      },
+      {
+        "path": "/projects/{projectId}/members/{userId}",
+        "definition": {
+          "entityName": "ProjectMember",
+          "schema": {
+            "$ref": "#/entities/ProjectMember"
+          },
+          "description": "Manages user roles and permissions for a project. The document ID is the user's UID."
+        }
+      }
+    ],
+    "reasoning": "This data model supports multi-tenancy for projects. Each project has a `members` subcollection that defines roles (owner, editor, viewer), enabling granular access control. The main editor content is stored in a `docs` subcollection, allowing for multiple documents per project and preparing for future features like version history. This structure is scalable and secure."
+  }
+}

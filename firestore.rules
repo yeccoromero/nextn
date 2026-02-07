@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for readability and reuse
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isProjectMember(projectId) {
+      return exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
+    }
+    
+    // Checks if the requesting user is the owner listed on the main project document
+    function isProjectOwner(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+    }
+
+    function getRole(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function isOwner(projectId) {
+      return isSignedIn() && isProjectMember(projectId) && getRole(projectId) == 'owner';
+    }
+
+    function isEditor(projectId) {
+      return isSignedIn() && isProjectMember(projectId) && getRole(projectId) in ['owner', 'editor'];
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read: if isSignedIn() && isProjectMember(projectId);
+      allow list: if isSignedIn(); // Users can list projects they are members of via queries.
+      
+      // Only signed-in users can create a project, and they must be the owner.
+      // The client must also create the corresponding 'members' document for the owner.
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      
+      // Only editors/owners can update project metadata (e.g., name).
+      // Disallow changing the owner.
+      allow update: if isEditor(projectId) 
+                    && request.resource.data.ownerId == resource.data.ownerId;
+      
+      // Only the project owner can delete a project.
+      allow delete: if isSignedIn() && isProjectOwner(projectId);
+
+      // --- Subcollections ---
+
+      // Project documents (snapshots)
+      match /docs/{docId} {
+        allow read: if isProjectMember(projectId);
+        allow create, update, delete: if isEditor(projectId);
+      }
+
+      // Project members
+      match /members/{userId} {
+        allow read: if isProjectMember(projectId);
+        allow list: if isProjectMember(projectId);
+        
+        // This rule handles two cases for member creation:
+        // 1. An existing project owner can add any new member (isOwner).
+        // 2. A user can create their own 'owner' member document, but only if they
+        //    are the owner specified in the parent project document. This is for
+        //    the initial project setup.
+        allow create: if isOwner(projectId) || (isProjectOwner(projectId) && request.auth.uid == userId && request.resource.data.role == 'owner');
+
+        // Only the project owner can update or remove members.
+        allow update, delete: if isOwner(projectId);
+      }
+    }
+  }
+}
