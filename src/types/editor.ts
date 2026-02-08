@@ -295,6 +295,11 @@ export type CopiedKeyframe = {
   relativeTimeMs: number;
   value: KeyValue;
   easing?: EasingId;
+  interpolation?: InterpolationType;
+  tangentMode?: 'broken' | 'smooth' | 'auto';
+  controlPoints?: { x1: number; y1: number; x2: number; y2: number };
+  spatialTangentIn?: { x: number; y: number };
+  spatialTangentOut?: { x: number; y: number };
   propertyId: PropertyId;
   objectId: string;
 };
@@ -450,7 +455,7 @@ export type EditorAction = (
   | { type: 'TOGGLE_TRACK_EXPANDED'; payload: { objectId: string; value?: boolean } }
   | { type: 'SELECT_KEYFRAMES_IN_RECT', payload: { keys: { objectId: string, propertyId: PropertyId, keyframeId: string }[], additive: boolean } }
   | { type: 'SET_KEYFRAME_TANGENT_MODE'; payload: { objectId: string; propertyId: PropertyId; keyframeId: string; mode: 'broken' | 'smooth' | 'auto' } }
-  | { type: 'UPDATE_KEYFRAME_CONTROL_POINTS', payload: { objectId: string; propertyId: PropertyId; keyframeId: string; controlPoints: { x1: number; y1: number; x2: number; y2: number } } }
+  | { type: 'UPDATE_KEYFRAME_CONTROL_POINTS', payload: { objectId: string; propertyId: PropertyId; keyframeId: string; controlPoints: Partial<{ x1: number; y1: number; x2: number; y2: number }> } }
   | { type: 'CLEAR_KEYFRAME_SELECTION' }
   | { type: 'POSITION_SELECT_KEYFRAME'; payload: { objectId: string; timeMs: number; additive?: boolean } }
   | { type: 'POSITION_MOVE_KEYFRAME'; payload: { objectId: string; fromTimeMs: number; toTimeMs: number }, transient?: boolean }
