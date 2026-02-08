@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useEditor } from '@/context/editor-context';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +61,21 @@ export default function Header() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <div className="flex items-center gap-2 select-none">
+          <span className="text-xs text-muted-foreground font-mono">v0.2.0</span>
+          {process.env.NODE_ENV === 'development' && (
+            <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 border-yellow-500/50 text-yellow-500 bg-yellow-500/10">
+              DEV
+            </Badge>
+          )}
+          {/* Vercel Preview Environment Detection */}
+          {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && (
+            <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 border-blue-500/50 text-blue-500 bg-blue-500/10">
+              BETA
+            </Badge>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
