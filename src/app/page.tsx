@@ -72,7 +72,7 @@ export default function DashboardPage() {
       const fetchProjects = async () => {
         try {
           setIsLoadingProjects(true);
-          
+
           const userProjectsQuery = query(
             collection(db, "projects"),
             where("ownerId", "==", user.uid)
@@ -98,7 +98,7 @@ export default function DashboardPage() {
       fetchProjects();
     }
   }, [user, db, toast]);
-  
+
   const handleCreateProject = async () => {
     if (!user || !newProjectName.trim()) return;
     setIsCreatingProject(true);
@@ -136,7 +136,7 @@ export default function DashboardPage() {
       setRenamingProject(null);
     }
   };
-  
+
   const handleConfirmDelete = async () => {
     if (!deletingProject) return;
     try {
@@ -156,17 +156,17 @@ export default function DashboardPage() {
       const newProject = await duplicateProject(db, user.uid, project);
       setProjects(prev => [...prev, newProject]);
       toast({ title: "Project duplicated" });
-    } catch(error) {
+    } catch (error) {
       toast({ variant: "destructive", title: "Failed to duplicate project" });
     }
   };
-  
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
       router.push('/login');
     } catch (error) {
-       toast({
+      toast({
         variant: "destructive",
         title: "Logout Failed",
         description: "There was an error signing out.",
@@ -181,16 +181,16 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex h-16 items-center justify-between border-b px-8">
-          <h1 className="text-xl font-bold">Vectoria</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm">{user.email}</span>
-            <Button variant="ghost" onClick={handleLogout}>Log Out</Button>
-          </div>
+        <h1 className="text-xl font-bold">Vectoria</h1>
+        <div className="flex items-center gap-4">
+          <span className="text-sm">{user.email}</span>
+          <Button variant="ghost" onClick={handleLogout}>Log Out</Button>
+        </div>
       </header>
       <main className="p-8">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-semibold">Your Projects</h2>
-           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -219,8 +219,8 @@ export default function DashboardPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   onClick={handleCreateProject}
                   disabled={isCreatingProject || !newProjectName.trim()}
                 >
@@ -241,7 +241,7 @@ export default function DashboardPage() {
                   <div className="cursor-pointer flex-1" onClick={() => router.push(`/projects/${project.id}`)}>
                     <CardTitle className="truncate">{project.name}</CardTitle>
                   </div>
-                   <DropdownMenu>
+                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 -mt-2 -mr-2" onClick={(e) => e.stopPropagation()}>
                         <MoreHorizontal className="h-4 w-4" />
@@ -275,7 +275,7 @@ export default function DashboardPage() {
         ) : (
           <div className="text-center py-16 border-2 border-dashed rounded-lg">
             <h3 className="text-xl font-medium">No projects yet</h3>
-            <p className="text-muted-foreground mt-2">Click "New Project" to get started.</p>
+            <p className="text-muted-foreground mt-2">Click &quot;New Project&quot; to get started.</p>
           </div>
         )}
       </main>
@@ -305,7 +305,7 @@ export default function DashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Project Alert Dialog */}
       <AlertDialog open={!!deletingProject} onOpenChange={(isOpen) => !isOpen && setDeletingProject(null)}>
         <AlertDialogContent>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function GlobalError({
     error,
@@ -57,7 +58,7 @@ export default function GlobalError({
                                     lineHeight: '1.6',
                                     marginBottom: '24px'
                                 }}>
-                                    You don't have permission to access this project.
+                                    You don&apos;t have permission to access this project.
                                     Please sign in with the correct account or contact the project owner.
                                 </p>
                             </>
@@ -102,7 +103,7 @@ export default function GlobalError({
                             >
                                 Try Again
                             </button>
-                            <a
+                            <Link
                                 href="/"
                                 style={{
                                     padding: '12px 24px',
@@ -118,7 +119,7 @@ export default function GlobalError({
                                 }}
                             >
                                 Go to Dashboard
-                            </a>
+                            </Link>
                         </div>
                     </div>
                 </div>

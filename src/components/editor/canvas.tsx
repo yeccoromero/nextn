@@ -100,6 +100,7 @@ const RenderObject = memo(({ obj, selectedObjectIds, currentTool, allObjects, se
 
     return true;
 });
+RenderObject.displayName = 'RenderObject';
 
 const RenderObjectContent = ({ obj, fill, transform, allObjects, selectedObjectIds, currentTool, selectedPathNodes, zoom, isVisible }: {
     obj: SvgObject,
