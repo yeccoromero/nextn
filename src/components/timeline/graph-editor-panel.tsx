@@ -3,11 +3,13 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor } from '@/context/editor-context';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { cn } from '@/lib/utils';
 import { msToX } from '@/lib/anim/utils';
 import { SvgObject, PropertyTrack, Keyframe, PropertyId } from '@/types/editor';
-import { ZoomIn, ZoomOut, Play, Pause, Sparkles } from 'lucide-react';
+import { ZoomIn, ZoomOut, Play, Pause, Sparkles, ChevronDown, Check, ChevronsUpDown } from 'lucide-react';
 import { EasingPresetPicker } from './easing-preset-picker';
 import { EasingPreset } from '@/lib/easing-presets';
 import { cubicBezierOneAxis, cubicBezierDerivativeOneAxis, solveBezierT } from '@/lib/anim/math-core';
@@ -52,6 +54,8 @@ interface HandleData {
     originalCp2: Point;
     segmentWidthPx: number;
     segmentHeightPx: number;
+    deltaValue?: number; // For Value graph scaling
+    valueRange?: number; // For Value graph scaling
     tangentMode: 'broken' | 'smooth' | 'auto';
 }
 
@@ -192,7 +196,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
         const rect = canvas.getBoundingClientRect();
         const x = clientX - rect.left;
         const y = clientY - rect.top;
-        const hitRadius = 12;
+        const hitRadius = 15;
 
         // Pass 1: Handles (High Priority)
         for (const h of handlesRef.current) {
@@ -304,34 +308,10 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
         if (!contextMenuState) return;
         const { kfId, objectId, propertyId } = contextMenuState;
 
-        // We need a new action type or update the keyframe directly.
-        // Since we don't have SET_KEYFRAME_TANGENT_MODE in reducer yet,
-        // we can hack it via UPDATE_KEYFRAME_CONTROL_POINTS or just add the action.
-        // Wait, did I add SET_KEYFRAME_TANGENT_MODE to reducer? No.
-        // I added tangentMode to schema.
-        // I should probably add the action, OR just update the keyframe generic property?
-        // UPDATE_OBJECTS (for properties)? No, Keyframe is deep.
-
-        // Let's use a generic update approach or assume I can modify the reducer quickly.
-        // Actually, I can allow it in `UPDATE_KEYFRAME_CONTROL_POINTS` payload?
-        // No, that action is specific.
-
-        // I will trigger a generic 'UPDATE_KEYFRAME' action tailored for this?
-        // Or I can just fetch the KF, update its mode, and dispatch a refresh?
-        // Redux/Context pattern requires an Action.
-
-        // I'll implement a temporary solution:
-        // Use `UPDATE_KEYFRAME_CONTROL_POINTS` but with specific flag? No.
-
-        // I WILL ADD `SET_KEYFRAME_TANGENT_MODE` TO REDUCER NEXT.
-        // For now, let's just log it.
-        console.warn("Dispatching Tangent Mode", mode);
-
-        // Dispatch custom action (I'll add it to reducer in next step)
         dispatch({
             type: 'SET_KEYFRAME_TANGENT_MODE',
-            payload: { kfId, objectId, propertyId, mode }
-        } as any);
+            payload: { keyframeId: kfId, objectId, propertyId: propertyId as PropertyId, mode }
+        });
     };
 
     const handlePointerMove = useCallback((e: React.PointerEvent) => {
@@ -404,6 +384,18 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
             let normDx = dx / segWidth;
             let normDy = -dy / segHeight;
+
+            // Value Graph Y-Axis scaling correction
+            if (graphMode === 'value' && targetHandle.deltaValue !== undefined && targetHandle.valueRange !== undefined) {
+                // d(cp.y) = normDy * (Range / DeltaVal)
+                const range = targetHandle.valueRange;
+                const dv = targetHandle.deltaValue;
+                if (Math.abs(dv) > 0.0001) {
+                    normDy = normDy * (range / dv);
+                } else {
+                    normDy = 0; // Prevent div by zero or erratic behavior on flat segments
+                }
+            }
 
             const absDx = Math.abs(dx);
             const absDy = Math.abs(dy);
@@ -546,9 +538,9 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     objectId: targetHandle.objectId,
                     propertyId: targetHandle.propertyId as PropertyId,
                     keyframeId: kfIdToUpdate,
-                    controlPoints: type === 'out'
-                        ? { x1: newX, y1: newY, x2: initialCpForUpdate.cp2.x, y2: initialCpForUpdate.cp2.y }
-                        : { x1: initialCpForUpdate.cp1.x, y1: initialCpForUpdate.cp1.y, x2: newX, y2: newY }
+                    controlPoints: (type === 'out'
+                        ? { x1: newX, y1: newY }
+                        : { x2: newX, y2: newY }) as any
                 }
             });
 
@@ -628,11 +620,9 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                                         propertyId: targetHandle.propertyId as PropertyId,
                                         keyframeId: prevKf.id,
                                         controlPoints: {
-                                            x1: prevCp.x1,
-                                            y1: prevCp.y1,
                                             x2: oppNewX,
                                             y2: oppNewY
-                                        }
+                                        } as any
                                     }
                                 });
                             }
@@ -687,11 +677,9 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                                         propertyId: targetHandle.propertyId as PropertyId,
                                         keyframeId: kfIdToUpdate,
                                         controlPoints: {
-                                            x1: oppNewX,
-                                            y1: oppNewY,
-                                            x2: cp.x2,
-                                            y2: cp.y2
-                                        }
+                                            x1: Math.max(0, Math.min(1, oppNewX)),
+                                            y1: oppNewY
+                                        } as any
                                     }
                                 });
                             }
@@ -1306,9 +1294,93 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     });
                 });
             });
+        } else if (graphMode === 'value') {
+            const valRange = globalMaxVal - globalMinVal;
+            const padding = valRange * 0.15 || 10;
+            const vMin = globalMinVal - padding;
+            const vMax = globalMaxVal + padding;
+            const PADDING = 20;
+            const contentHeight = height - PADDING * 2;
+
+            calculatedSegments.forEach(trackData => {
+                trackData.segments.forEach(seg => {
+                    const { kfStart, cp1, cp2, startX, endX, val1, val2, startMs, durationMs } = seg;
+
+                    // Show handles for anything that is not linear or hold.
+                    // This includes explicit 'bezier', 'ease', and implicit undefined (which defaults to S-curve).
+                    const hasBezier = kfStart.interpolation !== 'linear' && kfStart.interpolation !== 'hold';
+                    if (!hasBezier) return;
+
+                    const segmentWidthPx = endX - startX;
+                    const deltaVal = val2 - val1;
+
+                    // Calculate P1 (Out Handle)
+                    const p1Time = startMs + cp1.x * durationMs;
+                    const p1Val = val1 + cp1.y * deltaVal;
+
+                    const valOutX = timeToScreenX(p1Time, width);
+                    const valOutY = PADDING + ((vMax - p1Val) / (vMax - vMin)) * contentHeight;
+
+                    // Calculate P2 (In Handle)
+                    const p2Time = startMs + cp2.x * durationMs;
+                    const p2Val = val1 + cp2.y * deltaVal;
+
+                    const valInX = timeToScreenX(p2Time, width);
+                    const valInY = PADDING + ((vMax - p2Val) / (vMax - vMin)) * contentHeight;
+
+
+                    newHandles.push({
+                        kfId: kfStart.id,
+                        objectId: trackData.objectId,
+                        propertyId: trackData.propertyId,
+                        kfTimeMs: kfStart.timeMs,
+                        kfX: startX,
+                        kfY: PADDING + ((vMax - val1) / (vMax - vMin)) * contentHeight,
+                        outHandle: {
+                            screenX: valOutX,
+                            screenY: valOutY,
+                            visualScreenX: valOutX,
+                            visualScreenY: valOutY
+                        },
+                        inHandle: null,
+                        originalCp1: { ...cp1 },
+                        originalCp2: { ...cp2 },
+                        segmentWidthPx,
+                        segmentHeightPx: contentHeight, // Approximate for drag norm
+                        deltaValue: deltaVal,
+                        valueRange: valRange,
+                        tangentMode: kfStart.tangentMode || 'broken'
+                    });
+
+                    newHandles.push({
+                        kfId: seg.kfEnd.id,
+                        objectId: trackData.objectId,
+                        propertyId: trackData.propertyId,
+                        kfTimeMs: seg.kfEnd.timeMs,
+                        kfX: endX,
+                        kfY: PADDING + ((vMax - val2) / (vMax - vMin)) * contentHeight,
+                        outHandle: null,
+                        inHandle: {
+                            screenX: valInX,
+                            screenY: valInY,
+                            visualScreenX: valInX,
+                            visualScreenY: valInY
+                        },
+                        originalCp1: { ...cp1 },
+                        originalCp2: { ...cp2 },
+                        segmentWidthPx,
+                        segmentHeightPx: contentHeight,
+                        deltaValue: deltaVal,
+                        valueRange: valRange,
+                        tangentMode: seg.kfEnd.tangentMode || 'broken'
+                    });
+                });
+            });
         }
 
+
         handlesRef.current = newHandles;
+
 
 
         // --- DRAWING ---
@@ -1585,8 +1657,8 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 // Second: Hovered
                 // Third: Selected
 
-                let handleOpacity = 0.4;
-                let handleSize = 3;
+                let handleOpacity = 0.5; // Slightly more visible by default
+                let handleSize = 4;      // Larger default
                 let lineWidth = 1;
                 let strokeColor = '#666';
                 let fillColor = '#666';
@@ -1594,7 +1666,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 // Base style for selected keyframe handles
                 if (isKeyframeSelected) {
                     handleOpacity = 0.9;
-                    handleSize = 5;
+                    handleSize = 6;      // Larger selected
                     lineWidth = 1.5;
                     strokeColor = '#fff';
                     fillColor = '#fff';
@@ -1603,7 +1675,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 // Hover overrides
                 if (isHoveredIn || isHoveredOut) {
                     handleOpacity = 1.0;
-                    handleSize = 6;
+                    handleSize = 7;      // Larger hover
                     strokeColor = '#fff';
                     fillColor = '#fff';
                 }
@@ -1694,96 +1766,98 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
     return (
         <div className="relative w-full h-full bg-[#1a1a1a] overflow-hidden">
-            {/* Controls */}
-            <div className="absolute top-2 right-2 flex gap-1 z-20">
-                <button
+            {/* Controls - blocked from marquee */}
+            <div className="absolute top-2 right-2 flex gap-1 z-20" data-nomarquee>
+                <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={handleZoomOut}
-                    className="p-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-zinc-300 transition-colors"
+                    className="h-7 w-7 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/50"
                     title="Zoom Out (Ctrl+Scroll)"
                 >
                     <ZoomOut size={14} />
-                </button>
-                <span className="px-2 py-1 text-xs font-mono text-zinc-400 bg-zinc-800 rounded min-w-[50px] text-center">
+                </Button>
+                <span className="px-2 py-1 text-xs font-mono text-zinc-400 bg-zinc-800/50 rounded min-w-[50px] flex items-center justify-center border border-white/5">
                     {(zoomX * 100).toFixed(0)}%
                 </span>
-                <button
+                <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={handleZoomIn}
-                    className="p-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-zinc-300 transition-colors"
+                    className="h-7 w-7 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/50"
                     title="Zoom In (Ctrl+Scroll)"
                 >
                     <ZoomIn size={14} />
-                </button>
+                </Button>
 
-                <div className="w-px bg-zinc-600 mx-1" />
+                <div className="w-px bg-white/10 mx-1" />
 
-                <button
+                <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={togglePlay}
                     className={cn(
-                        "p-1.5 rounded transition-colors",
+                        "h-7 w-7 transition-colors",
                         state.timeline.playing
-                            ? "bg-cyan-500 text-black"
-                            : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
+                            ? "bg-cyan-500 text-black hover:bg-cyan-400"
+                            : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/50"
                     )}
                     title="Preview Animation"
                 >
                     {state.timeline.playing ? <Pause size={14} /> : <Play size={14} />}
-                </button>
+                </Button>
 
-                <div className="w-px bg-zinc-600 mx-1" />
+                <div className="w-px bg-white/10 mx-1" />
 
-                <button
+                <Button
+                    variant={graphMode === 'speed' ? 'default' : 'ghost'}
+                    size="sm"
                     onClick={() => setGraphMode('speed')}
                     className={cn(
-                        "px-2 py-1 text-xs font-medium rounded transition-colors",
+                        "h-7 px-2 text-xs font-medium",
                         graphMode === 'speed'
-                            ? "bg-yellow-500 text-black"
-                            : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                            ? "bg-yellow-500 text-black hover:bg-yellow-400"
+                            : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/50"
                     )}
                 >
                     Speed
-                </button>
-                <button
+                </Button>
+                <Button
+                    variant={graphMode === 'value' ? 'default' : 'ghost'}
+                    size="sm"
                     onClick={() => setGraphMode('value')}
                     className={cn(
-                        "px-2 py-1 text-xs font-medium rounded transition-colors",
+                        "h-7 px-2 text-xs font-medium",
                         graphMode === 'value'
-                            ? "bg-yellow-500 text-black"
-                            : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                            ? "bg-yellow-500 text-black hover:bg-yellow-400"
+                            : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/50"
                     )}
                 >
                     Value
-                </button>
+                </Button>
 
-                <div className="w-px bg-zinc-600 mx-1" />
-
-                <div className="w-px bg-zinc-600 mx-1" />
+                <div className="w-px bg-white/10 mx-1" />
 
                 {/* Numeric Inputs for Selected Handle */}
                 {selectedHandle && (
                     <>
-                        <div className="flex items-center gap-1 bg-zinc-800 rounded px-1.5 py-0.5 border border-zinc-700">
-                            <span className="text-[10px] text-zinc-400 font-mono">X</span>
-                            <input
+                        <div className="flex items-center gap-1 bg-zinc-800/50 rounded px-1.5 py-0.5 border border-white/10">
+                            <span className="text-[10px] text-zinc-500 font-mono">X</span>
+                            <Input
                                 type="number"
                                 step="0.01"
-                                className="w-12 bg-transparent text-xs font-mono text-zinc-200 outline-none text-right"
+                                className="w-12 h-5 p-0 bg-transparent text-xs font-mono text-zinc-200 border-none outline-none text-right focus-visible:ring-0 placeholder:text-zinc-600"
                                 placeholder="Infl"
                                 onKeyDown={(e) => e.stopPropagation()}
                                 onChange={(e) => {
                                     const val = parseFloat(e.target.value);
                                     if (isNaN(val)) return;
 
-                                    // Dispatch Immediate Update? Or Debounce?
-                                    // Logic needs to find current 'other' values.
                                     const handle = handlesRef.current.find(h =>
                                         h.kfId === selectedHandle.kfId &&
                                         (selectedHandle.type === 'out' ? h.outHandle : h.inHandle)
                                     );
                                     if (!handle) return;
-
-                                    // We need original CPs or current?
-                                    // Current CPs are in 'handle.originalCpX' but those might be stale if we dragged?
-                                    // Actually `handle.originalCp` are refreshed on every render (in build handles).
 
                                     let newControlPoints;
                                     if (selectedHandle.type === 'out') {
@@ -1814,12 +1888,12 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                                 }}
                             />
                         </div>
-                        <div className="flex items-center gap-1 bg-zinc-800 rounded px-1.5 py-0.5 border border-zinc-700">
-                            <span className="text-[10px] text-zinc-400 font-mono">Y</span>
-                            <input
+                        <div className="flex items-center gap-1 bg-zinc-800/50 rounded px-1.5 py-0.5 border border-white/10">
+                            <span className="text-[10px] text-zinc-500 font-mono">Y</span>
+                            <Input
                                 type="number"
                                 step="0.01"
-                                className="w-12 bg-transparent text-xs font-mono text-zinc-200 outline-none text-right"
+                                className="w-12 h-5 p-0 bg-transparent text-xs font-mono text-zinc-200 border-none outline-none text-right focus-visible:ring-0"
                                 onKeyDown={(e) => e.stopPropagation()}
                                 onChange={(e) => {
                                     const val = parseFloat(e.target.value);
@@ -1860,24 +1934,26 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                                 }}
                             />
                         </div>
-                        <div className="w-px bg-zinc-600 mx-1" />
+                        <div className="w-px bg-white/10 mx-1" />
                     </>
                 )}
 
                 <Popover open={showPresetPicker} onOpenChange={setShowPresetPicker}>
                     <PopoverTrigger asChild>
-                        <button
+                        <Button
+                            variant={showPresetPicker ? 'default' : 'ghost'}
+                            size="sm"
                             className={cn(
-                                "px-2 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1",
+                                "h-7 px-2 text-xs font-medium gap-1",
                                 showPresetPicker
-                                    ? "bg-amber-500 text-black"
-                                    : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                                    ? "bg-amber-500 text-black hover:bg-amber-400"
+                                    : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/50"
                             )}
                             title="Easing Presets Library"
                         >
                             <Sparkles size={12} />
                             Presets
-                        </button>
+                        </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[420px] p-0 border-none bg-transparent shadow-none" side="top" align="end" sideOffset={8}>
                         <EasingPresetPicker

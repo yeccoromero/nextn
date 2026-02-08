@@ -19,9 +19,13 @@ else
 fi
 
 # 3. Authenticate with GitHub
-echo "🔑 Autenticando con GitHub..."
-echo "👉 Sigue las instrucciones en el navegador para iniciar sesión."
-gh auth login -p https -w
+if ! gh auth status &> /dev/null; then
+    echo "🔑 Autenticando con GitHub..."
+    echo "👉 Sigue las instrucciones en el navegador para iniciar sesión."
+    gh auth login -p https -w
+else
+    echo "✅ Ya estás autenticado con GitHub."
+fi
 
 # 4. Create and Push Repository
 echo "📂 Creando repositorio en GitHub..."
@@ -34,8 +38,12 @@ git push -u origin dev
 
 # 5. Vercel Deployment
 echo "🚀 Desplegando en Vercel..."
-echo "Te pedirá loguearte si no lo estás."
-npx vercel login
+if ! npx vercel whoami &> /dev/null; then
+    echo "Te pedirá loguearte si no lo estás."
+    npx vercel login
+else
+    echo "✅ Ya estás autenticado con Vercel."
+fi
 npx vercel project add nextn || echo "⚠️ El proyecto podría ya existir en Vercel."
 npx vercel deploy --prod
 

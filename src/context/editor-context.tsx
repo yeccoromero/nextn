@@ -353,7 +353,7 @@ function getExistingPropTrack(draft: EditorState, objectId: string, propertyId: 
   return layer.properties?.find(p => p.id === resolvedPropId) ?? null;
 }
 
-function upsertKeyframe(track: PropertyTrack, timeMs: number, value: any, easing: EasingId = 'linear'): string {
+function upsertKeyframe(track: PropertyTrack, timeMs: number, value: any, options: { easing?: EasingId, interpolation?: InterpolationType, tangentMode?: 'broken' | 'smooth' | 'auto', controlPoints?: { x1: number; y1: number; x2: number; y2: number }, spatialTangentIn?: { x: number; y: number }, spatialTangentOut?: { x: number; y: number } } = {}): string {
   const clonedValue = structuredClone(value);
 
   const existingIndex = track.keyframes.findIndex(k => Math.abs(k.timeMs - timeMs) < 0.5);
@@ -362,10 +362,27 @@ function upsertKeyframe(track: PropertyTrack, timeMs: number, value: any, easing
     const existingKf = track.keyframes[existingIndex];
     existingKf.value = clonedValue;
     existingKf.timeMs = timeMs;
+    if (options.easing) existingKf.easing = options.easing;
+    if (options.interpolation) existingKf.interpolation = options.interpolation;
+    if (options.tangentMode) existingKf.tangentMode = options.tangentMode;
+    if (options.controlPoints) existingKf.controlPoints = options.controlPoints;
+    if (options.spatialTangentIn) existingKf.spatialTangentIn = options.spatialTangentIn;
+    if (options.spatialTangentOut) existingKf.spatialTangentOut = options.spatialTangentOut;
+
     track.keyframes.sort((a, b) => a.timeMs - b.timeMs);
     return existingKf.id;
   } else {
-    const kf: Keyframe = { id: nanoid(), timeMs, value: clonedValue, easing, interpolation: 'linear' };
+    const kf: Keyframe = {
+      id: nanoid(),
+      timeMs,
+      value: clonedValue,
+      easing: options.easing || 'linear',
+      interpolation: options.interpolation || 'linear',
+      tangentMode: options.tangentMode,
+      controlPoints: options.controlPoints,
+      spatialTangentIn: options.spatialTangentIn,
+      spatialTangentOut: options.spatialTangentOut
+    };
     track.keyframes.push(kf);
     track.keyframes.sort((a, b) => a.timeMs - b.timeMs);
     return kf.id;
@@ -390,6 +407,11 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
                   relativeTimeMs: kf.timeMs,
                   value: kf.value,
                   easing: kf.easing,
+                  interpolation: kf.interpolation,
+                  tangentMode: kf.tangentMode,
+                  controlPoints: kf.controlPoints ? structuredClone(kf.controlPoints) : undefined,
+                  spatialTangentIn: kf.spatialTangentIn ? structuredClone(kf.spatialTangentIn) : undefined,
+                  spatialTangentOut: kf.spatialTangentOut ? structuredClone(kf.spatialTangentOut) : undefined,
                   propertyId: propTrack.id,
                   objectId: layer.objectId,
                 });
@@ -631,7 +653,14 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
 
             const newTimeMs = targetTimeMs + kfToPaste.relativeTimeMs;
 
-            upsertKeyframe(propTrack, newTimeMs, kfToPaste.value, kfToPaste.easing);
+            upsertKeyframe(propTrack, newTimeMs, kfToPaste.value, {
+              easing: kfToPaste.easing,
+              interpolation: kfToPaste.interpolation,
+              tangentMode: kfToPaste.tangentMode,
+              controlPoints: kfToPaste.controlPoints ? structuredClone(kfToPaste.controlPoints) : undefined,
+              spatialTangentIn: kfToPaste.spatialTangentIn ? structuredClone(kfToPaste.spatialTangentIn) : undefined,
+              spatialTangentOut: kfToPaste.spatialTangentOut ? structuredClone(kfToPaste.spatialTangentOut) : undefined
+            });
           });
         });
 
@@ -748,10 +777,13 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
     }
     case 'SET_KEYFRAME_TANGENT_MODE': {
       const { objectId, propertyId, keyframeId, mode } = action.payload;
-      const track = getExistingPropTrack(draft, objectId, propertyId);
-      if (!track) return;
+      const layerTrack = draft.timeline.layers[objectId];
+      if (!layerTrack) return;
 
-      const kf = track.keyframes.find(k => k.id === keyframeId);
+      const propTrack = layerTrack.properties.find(p => p.id === propertyId);
+      if (!propTrack) return;
+
+      const kf = propTrack.keyframes.find(k => k.id === keyframeId);
       if (kf) {
         kf.tangentMode = mode;
       }
@@ -1149,66 +1181,20 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       if (layer) {
         const track = layer.properties.find(p => p.id === propertyId);
         if (track) {
-          // SORT first to ensure index logic works
+          // SORT first to ensure index logic works (though find by ID is robust)
           track.keyframes.sort((a, b) => a.timeMs - b.timeMs);
-          const kfIndex = track.keyframes.findIndex(k => k.id === keyframeId);
-          const kf = track.keyframes[kfIndex];
+          const kf = track.keyframes.find(k => k.id === keyframeId);
 
           if (kf) {
             const oldCp = kf.controlPoints || { x1: 0.33, y1: 0, x2: 0.67, y2: 1 };
 
-            // Detect which handle moved
-            const movedX1 = Math.abs(controlPoints.x1 - oldCp.x1) > 0.0001;
-            const movedY1 = Math.abs(controlPoints.y1 - oldCp.y1) > 0.0001;
-            const movedX2 = Math.abs(controlPoints.x2 - oldCp.x2) > 0.0001;
-            const movedY2 = Math.abs(controlPoints.y2 - oldCp.y2) > 0.0001;
+            // Merge partial updates with existing values
+            kf.controlPoints = {
+              ...oldCp,
+              ...controlPoints
+            };
 
-            // Update current
-            kf.controlPoints = controlPoints;
             kf.interpolation = "bezier";
-
-            // LOGIC FOR SMOOTH TANGENTS
-            // 1. If we moved OUT handle (x1/y1) -> Check PREVIOUS keyframe's IN handle (x2/y2)
-            if (movedX1 || movedY1) {
-              if (kfIndex > 0) {
-                const prevKf = track.keyframes[kfIndex - 1]; // This is the logic gap. x1 belongs to CURRENT segment.
-                // Wait. CP1 (x1/y1) is the OUTGOING handle of the START keyframe of the segment.
-                // CP2 (x2/y2) is the INCOMING handle of the END keyframe of the segment.
-
-                // The "Keyframe Object" in our schema owns the segment *starting* from it.
-                // So kf.controlPoints.x1/y1 is kf's OUT handle.
-                // kf.controlPoints.x2/y2 is the NEXT keyframe's IN handle.
-
-                // So...
-                // If updated x1/y1 (OUT handle of kf) -> Check kf.tangentMode
-                // If 'smooth', update kf's IN handle... which belongs to the PREVIOUS segment.
-
-                if (kf.tangentMode === 'smooth' && kfIndex > 0) {
-                  const prevKf = track.keyframes[kfIndex - 1];
-                  // we need to update prevKf.controlPoints.x2 / y2
-                  // But how?
-                  // The handles are coupled in LENGTH and ANGLE? Or just ANGLE?
-                  // Usually just angle for "Unified", angle+length for "Continuous".
-                  // Let's assume Angle lock (180 degrees opposing).
-
-                  // This is hard because x/y are normalized (0-1) to the segment duration/value.
-                  // We need to convert to "Visual/Absolute" space, rotate 180, convert back.
-                  // This requires knowing the durations and value deltas of BOTH segments.
-                  // Doing this in the reducer is... risky and hard.
-                }
-              }
-            }
-
-            // SIMPLIFIED APPROACH IMPLEMENTED IN UI LAYER FIRST?
-            // No, reducer is the source of truth.
-
-            // Actually, let's just stick to the basic update for now and let the UI calculate the coupled handle position?
-            // If I do `dispatch(UPDATE...)` with computed values for BOTH keyframes, it requires two dispatches or a specific batched action.
-
-            // Better: "UPDATE_KEYFRAME_CONTROL_POINTS" just blindly updates what it's told.
-            // The UI (GraphEditor) is responsible for the math and sending TWO updates if needed.
-            // BUT, we need to know if we SHOULD update the other handle.
-            // That's state.
           }
         }
       }
