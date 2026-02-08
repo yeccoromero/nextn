@@ -244,6 +244,7 @@ export const LayersPanel = () => {
             </DropdownMenuContent>
           </DropdownMenu>
           <h3 className="text-sm font-semibold group-data-[collapsible=icon]:hidden">Vectoria</h3>
+          <span className="text-xs text-muted-foreground font-mono group-data-[collapsible=icon]:hidden">v0.2.0</span>
           <div className="flex-1" />
           <SidebarTrigger className="group-data-[collapsible=icon]:hidden" />
         </div>

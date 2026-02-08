@@ -60,7 +60,7 @@ export default function ProjectError({
                             lineHeight: '1.6',
                             marginBottom: '24px'
                         }}>
-                            You don't have permission to access this project.
+                            You don&apos;t have permission to access this project.
                             Please sign in with the correct account or contact the project owner.
                         </p>
                     </>
@@ -81,7 +81,7 @@ export default function ProjectError({
                             lineHeight: '1.6',
                             marginBottom: '24px'
                         }}>
-                            The project you're looking for doesn't exist or has been deleted.
+                            The project you&apos;re looking for doesn&apos;t exist or has been deleted.
                         </p>
                     </>
                 ) : (
@@ -101,7 +101,7 @@ export default function ProjectError({
                             lineHeight: '1.6',
                             marginBottom: '24px'
                         }}>
-                            We couldn't load this project. Please try again.
+                            We couldn&apos;t load this project. Please try again.
                         </p>
                     </>
                 )}

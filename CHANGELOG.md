@@ -12,6 +12,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - **Marquee Selection**: Selección de múltiples keyframes mediante arrastre en el editor.
 - **Tangentes Suaves (Smooth Tangents)**: Soporte para tangentes continuas y rotas en curvas Bezier.
 - **Inputs Numéricos**: Control preciso de influencia y valores en el toolbar.
+- **Badge de Versión**: Ahora se muestra la versión de la aplicación junto al título "Vectoria" en el sidebar.
 
 ### Corregido
 - **Portapapeles (Clipboard)**: Ahora preserva la interpolación (Ease/Bezier) y puntos de control al copiar/pegar keyframes.
