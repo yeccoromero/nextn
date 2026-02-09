@@ -16,6 +16,21 @@ We follow **Semantic Versioning 2.0.0** (`vMAJOR.MINOR.PATCH`).
 - `0.1.1`: Fix layout shift in Properties Panel.
 - `0.2.0`: Add "Speed Graph" feature.
 
+### Milestone-Based Release Philosophy
+
+> **"No subimos a v1.0.0 hasta que la app esté lista para mostrar al mundo"**
+
+| Fase | Versiones | Objetivo |
+| :--- | :--- | :--- |
+| **Estabilización** | `0.x.x` | Bug fixes, pulir UX, resolver deuda técnica |
+| **Lanzamiento** | `1.0.0` | App estable, confiable, lista para usuarios finales |
+
+**Criterios para v1.0.0:**
+- [ ] Sin bugs críticos conocidos
+- [ ] UX pulida y consistente
+- [ ] Performance aceptable
+- [ ] Documentación completa
+
 ---
 
 ## 2. Branching Strategy
