@@ -1,44 +1,80 @@
-# Changelog
+# 📒 Bitácora de Cambios (Changelog)
 
-Todos los cambios notables en este proyecto se documentarán en este archivo.
+Este archivo documenta **todos los cambios notables** del proyecto con referencias a commits específicos para poder hacer **rollback** a cualquier punto.
 
-El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
-y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
-
-## [0.2.0] - 2026-02-07
-
-### Añadido
-- **Editor de Gráficos (Graph Editor)**: Implementación completa con modos de Velocidad y Valor.
-- **Marquee Selection**: Selección de múltiples keyframes mediante arrastre en el editor.
-- **Tangentes Suaves (Smooth Tangents)**: Soporte para tangentes continuas y rotas en curvas Bezier.
-- **Inputs Numéricos**: Control preciso de influencia y valores en el toolbar.
-- **Badge de Versión**: Ahora se muestra la versión de la aplicación junto al título "Vectoria" en el sidebar.
-
-### Corregido
-- **Portapapeles (Clipboard)**: Ahora preserva la interpolación (Ease/Bezier) y puntos de control al copiar/pegar keyframes.
-- **UI del Graph Editor**: Refactorización completa usando componentes estándar (`Button`, `Input`, `Popover`) para consistencia visual.
-- **Navegación**: Reparada la interacción de botones en el toolbar que no respondían a clics.
-
-### Cambiado
-- **Estructura**: Limpieza de archivos raíz y archivado de planes obsolestos.
-
----
-*Verificación de Integración Vercel: Test Commit*
+> **Comando de Rollback**: `git checkout <commit-hash>`  
+> **Volver a dev**: `git checkout dev`
 
 ---
 
-## [0.1.0] - 2026-02-07
+## [0.2.0] - 2026-02-07 | Tag: `v0.2.0`
 
-### Añadido
-- **GUIA_USUARIO.md**: Guía simplificada para la gestión no técnica del proyecto.
-- **WORKFLOW.md**: Protocolo técnico de desarrollo y versionado.
-- **CHANGELOG.md**: Este archivo para registrar la historia del proyecto.
-- **Carpeta `archive/`**: Para almacenar documentación antigua y mantener la raíz limpia.
+**🔖 Rollback a esta versión:** `git checkout 6bdda21`
 
-### Cambiado
-- **PLAN.md**: Actualizado para referenciar los nuevos protocolos (`WORKFLOW.md`).
-- **README.md**: Añadido enlace directo a la Guía de Usuario.
-- **Limpieza**: Movido `DESIGN_AUDIT.md` a la carpeta `archive/`.
+### ✅ Añadido
+| Feature | Descripción | Commit |
+|---------|-------------|--------|
+| Graph Editor | Implementación completa con modos de Velocidad y Valor | `7208e85` |
+| Marquee Selection | Selección de múltiples keyframes mediante arrastre | `7208e85` |
+| Smooth Tangents | Soporte para tangentes continuas y rotas en curvas Bezier | `7208e85` |
+| Inputs Numéricos | Control preciso de influencia y valores en el toolbar | `7208e85` |
+| Badge de Versión | Versión visible junto a "Vectoria" en el sidebar | `a03f653` |
+
+### 🐛 Corregido
+| Bug | Descripción | Commit | Rollback |
+|-----|-------------|--------|----------|
+| ESLint Circular | Error "Converting circular structure" en build | `80f8882` | `git checkout 6bdda21` |
+| Firebase Init | Warning "Need to provide options" en Vercel | `80f8882` | `git checkout 6bdda21` |
+| Unescaped Entities | Caracteres sin escapar en JSX | `377daf9` | `git checkout 80f8882` |
+| Display Name | Missing displayName en RenderObject | `377daf9` | `git checkout 80f8882` |
+| Portapapeles | Ahora preserva interpolación al copiar/pegar keyframes | `7208e85` | `git checkout 761366d` |
+| UI Graph Editor | Refactorización usando componentes estándar | `7208e85` | `git checkout 761366d` |
+| Navegación Toolbar | Botones que no respondían a clics | `7208e85` | `git checkout 761366d` |
+
+### 🔧 Configuración/Build
+| Cambio | Descripción | Commit |
+|--------|-------------|--------|
+| ESLint Rules | Deshabilitadas reglas estrictas para green build | `8f2ed97` |
+| Hook Rules | Deshabilitadas reglas de hooks | `4d503bf` |
+| Any Rules | Deshabilitada regla no-explicit-any | `6a1ceca` |
 
 ---
-*Tip: Si necesitas volver a este punto en el futuro, pide al Agente: "Rollback a versión 0.1.0"*
+
+## [0.1.0] - 2026-02-07 | Tag: `v0.1.0`
+
+**🔖 Rollback a esta versión:** `git checkout 8260411`
+
+### ✅ Añadido
+| Feature | Descripción | Commit |
+|---------|-------------|--------|
+| GUIA_USUARIO.md | Guía simplificada para gestión no técnica | `8260411` |
+| WORKFLOW.md | Protocolo técnico de desarrollo y versionado | `8260411` |
+| CHANGELOG.md | Este archivo para registrar la historia | `8260411` |
+| Carpeta `archive/` | Almacenamiento de documentación antigua | `8260411` |
+
+---
+
+## 🚨 Guía de Emergencia
+
+### Si algo se rompe:
+1. **Identificar el último commit estable** en esta bitácora
+2. **Ejecutar rollback**: `git checkout <commit-hash>`
+3. **Verificar** que la app funciona
+4. **Crear branch de hotfix**: `git checkout -b fix/nombre-del-problema`
+5. **Arreglar y mergear** cuando esté listo
+
+### Comandos útiles:
+```bash
+# Ver historial completo
+git log --oneline -30
+
+# Volver a un commit específico (modo lectura)
+git checkout <commit-hash>
+
+# Volver al desarrollo normal
+git checkout dev
+
+# Crear tag de versión
+git tag v0.2.1
+git push origin v0.2.1
+```
