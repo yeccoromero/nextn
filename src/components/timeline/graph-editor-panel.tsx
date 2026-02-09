@@ -887,6 +887,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     const uniqueKeyIds = new Set<string>();
                     const selectedKeys: any[] = [];
 
+
                     // Iterate RENDERED handles (what the user actually sees)
                     // This avoids coordinate mismatches from recalculation.
                     for (const hData of handlesRef.current) {
@@ -1001,7 +1002,6 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
         }[] = [];
 
         const newHandles: HandleData[] = [];
-
 
         let globalStartMs = Infinity, globalEndMs = -Infinity;
 
@@ -1225,7 +1225,9 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 trackData.segments.forEach((seg) => {
                     const { kfStart, cp1, cp2, startX, endX, startY, endY } = seg;
 
-                    const hasBezier = kfStart.interpolation === 'bezier' || kfStart.interpolation === 'ease';
+                    // Show handles for anything that is not linear or hold
+                    // This includes explicit 'bezier', 'ease', and implicit undefined (which defaults to S-curve)
+                    const hasBezier = kfStart.interpolation !== 'linear' && kfStart.interpolation !== 'hold';
                     if (!hasBezier) return;
 
                     const segmentWidthPx = endX - startX;

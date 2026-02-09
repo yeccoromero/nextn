@@ -23,6 +23,7 @@ Este archivo documenta **todos los cambios notables** del proyecto con referenci
 ### 🐛 Corregido
 | Bug | Descripción | Commit | Rollback |
 |-----|-------------|--------|----------|
+| Marquee Multi-Track | Marquee ahora selecciona keyframes con 2+ propiedades animadas | `pending` | `git checkout a03f653` |
 | ESLint Circular | Error "Converting circular structure" en build | `80f8882` | `git checkout 6bdda21` |
 | Firebase Init | Warning "Need to provide options" en Vercel | `80f8882` | `git checkout 6bdda21` |
 | Unescaped Entities | Caracteres sin escapar en JSX | `377daf9` | `git checkout 80f8882` |
@@ -30,6 +31,7 @@ Este archivo documenta **todos los cambios notables** del proyecto con referenci
 | Portapapeles | Ahora preserva interpolación al copiar/pegar keyframes | `7208e85` | `git checkout 761366d` |
 | UI Graph Editor | Refactorización usando componentes estándar | `7208e85` | `git checkout 761366d` |
 | Navegación Toolbar | Botones que no respondían a clics | `7208e85` | `git checkout 761366d` |
+
 
 ### 🔧 Configuración/Build
 | Cambio | Descripción | Commit |
