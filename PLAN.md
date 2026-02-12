@@ -1,23 +1,13 @@
 # 🦅 Squad Project Plan
 
 ## 🗺️ Master Roadmap
-1.  **Visual Excellence Gate (Passed 9/10)**
-    *   [x] Audit & Fix Glassmorphism on all floating elements. (Passed "Vibe Check")
-    *   [x] Implement "Pro Motion" Design System.
-    *   [x] Refine Property Inspector alignment & contrast (Fixed "Jitter").
-2.  **Speed Graph Implementation (CRITICAL FIXES NEEDED)**
-    *   [x] **[URGENT] Continuous Tangent Logic**: Implement "Smooth" vs "Broken" handle modes. (Currently always broken).
-    *   [x] **Marquee Selection**: Activated and refined hit-testing for responsive selection.
-    *   [x] **[URGENT] Numeric Inputs**: Add precise value/influence inputs for handles.
-    *   [x] **Value Graph Handles**: Fixed invisible handles and interaction logic in Value Mode. (See elog #1)
-    *   [x] **Toolbar Interaction**: Fixed unclickable buttons caused by event capture. (See elog #2)
-3.  **Project Polish & Standards**
-    *   [x] Establish reliable component library. (Graph Editor Refactored)
-    *   [x] Ensure 60fps performance on all interactions. (Optimized render loops)
+1.  **Framework Upgrade (v0.4.0 Baseline)**
+    *   [x] **Establish Baseline**: Version bump & cleanup.
+    *   [ ] **Next Feature**: [To Be Defined by User]
 
 ## 🚀 Current Trajectory
-**Objective**: Maintain stability and proceed to Feature Implementation (Next: Keyframe Ease Presets Library?).
-**Focus**: Stability & User Feedback.
+**Objective**: Clean slate for new feature cycle.
+**Focus**: Definition & Architecture.
 
 ## 🦅 Squad Workflow Protocol
 Detailed technical workflow is defined in [WORKFLOW.md](./WORKFLOW.md).
@@ -30,10 +20,10 @@ Detailed technical workflow is defined in [WORKFLOW.md](./WORKFLOW.md).
 ## 🟢 Squad Status
 | Role | Agent | Status |
 | :--- | :--- | :--- |
-| **Pro User** | Antigravity | **Cycle Complete** |
-| **Auditor** | Antigravity | **Cycle Complete** |
-| **Engine** | Antigravity | **Cycle Complete** |
-| **Frontend** | Antigravity | **Active: Monitoring** |
+| **Pro User** | Antigravity | **Waiting** |
+| **Auditor** | Antigravity | **Waiting** |
+| **Engine** | Antigravity | **Waiting** |
+| **Frontend** | Antigravity | **Waiting** |
 
 ## 📜 Engineering Log (elog)
 

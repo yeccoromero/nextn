@@ -184,7 +184,25 @@ export function ManualContextMenu({ x, y, keyframeId, objectId, propertyId, onCl
                 onClick={() => handleSetInterpolation('ease')}
             >
                 <span className="w-2 h-2 bg-current pointer-events-none" style={{ clipPath: 'polygon(50% 0%, 100% 0%, 50% 50%, 100% 100%, 0% 100%, 50% 50%, 0% 0%)' }} />
-                Ease
+                Ease (Hourglass)
+            </button>
+
+            <button
+                className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground gap-2 w-full text-left"
+                onClick={() => handleSetInterpolation('ease-in')}
+            >
+                {/* Right pointing triangle (Into keyframe) */}
+                <span className="w-2 h-2 bg-current pointer-events-none" style={{ clipPath: 'polygon(0% 0%, 100% 50%, 0% 100%)' }} />
+                Ease In
+            </button>
+
+            <button
+                className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground gap-2 w-full text-left"
+                onClick={() => handleSetInterpolation('ease-out')}
+            >
+                {/* Left pointing triangle (Out of keyframe) */}
+                <span className="w-2 h-2 bg-current pointer-events-none" style={{ clipPath: 'polygon(100% 0%, 0% 50%, 100% 100%)' }} />
+                Ease Out
             </button>
 
             <div className="h-px my-1 bg-border" />

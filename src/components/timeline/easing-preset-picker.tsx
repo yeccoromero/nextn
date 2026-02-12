@@ -11,7 +11,18 @@ import {
   parseCubicBezier,
   toCubicBezierString,
 } from '@/lib/easing-presets';
+import { solveCubicBezier } from '@/lib/anim/math-core';
 import { generateEasingSVGPath } from '@/lib/easing-preview';
+import {
+  Search,
+  X,
+  ChevronDown,
+  ChevronRight,
+  GalleryVerticalEnd,
+  PenTool,
+  Save,
+  Check
+} from 'lucide-react';
 
 // LocalStorage key for custom presets
 const CUSTOM_PRESETS_KEY = 'vectoria-custom-easings';
@@ -38,6 +49,85 @@ function loadCustomPresets(): EasingPreset[] {
 function saveCustomPresets(presets: EasingPreset[]): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(presets));
+}
+
+// ============ EasingPreview Component ============
+function EasingPreview({ controlPoints }: { controlPoints: { x1: number; y1: number; x2: number; y2: number } }) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const requestRef = React.useRef<number>();
+  const startTimeRef = React.useRef<number>(0);
+
+  const DURATION = 1000;
+  const DELAY = 500;
+
+  const animate = useCallback((time: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    if (!startTimeRef.current) startTimeRef.current = time;
+
+    // Cycle logic: 0 -> 1 (duration) -> wait (delay) -> reset
+    const elapsed = time - startTimeRef.current;
+    const totalCycle = DURATION + DELAY;
+    const progress = (elapsed % totalCycle) / DURATION;
+
+    // Clear
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Draw Track
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(10, h / 2);
+    ctx.lineTo(w - 10, h / 2);
+    ctx.stroke();
+
+    // Calculate Position
+    let t = Math.min(1, Math.max(0, progress));
+    // If we are in the delay phase
+    if (elapsed % totalCycle > DURATION) {
+      t = 1;
+    }
+
+    const value = solveCubicBezier(controlPoints.x1, controlPoints.y1, controlPoints.x2, controlPoints.y2, t);
+
+    // Position = Start + (End - Start) * EasedValue(t)
+    const posX = 10 + (w - 20) * value;
+
+    // Draw Moving Circle
+    ctx.beginPath();
+    ctx.fillStyle = '#4D96FF';
+    ctx.shadowColor = '#4D96FF';
+    ctx.shadowBlur = 10;
+    ctx.arc(posX, h / 2, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    requestRef.current = requestAnimationFrame(animate);
+  }, [controlPoints]);
+
+  useEffect(() => {
+    requestRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [animate]);
+
+  return (
+    <div className="w-full h-12 bg-black/40 border-b border-white/5 relative overflow-hidden flex items-center justify-center shrink-0">
+      <canvas
+        ref={canvasRef}
+        width={320}
+        height={48}
+        className="w-full h-full"
+      />
+      <div className="absolute top-1 right-2 text-[10px] text-white/20 font-mono tracking-widest pointer-events-none">PREVIEW</div>
+    </div>
+  );
 }
 
 export function EasingPresetPicker({
@@ -184,7 +274,7 @@ export function EasingPresetPicker({
       return { x: (window.innerWidth - 420) / 2, y: 100 };
     }
 
-    const popoverWidth = 420;
+    const popoverWidth = 320; // Corrected width
     const popoverHeight = 500;
     const padding = 16;
 
@@ -243,31 +333,73 @@ export function EasingPresetPicker({
     };
   }, [isDragging, dragOffset]);
 
-  // Render as standard component (PopoverContent will handle positioning/glass effect)
-  return (
-    <div className="flex flex-col h-full w-full max-h-[500px]" onClick={e => e.stopPropagation()}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-white/10">
-        <span className="text-sm font-semibold text-white">📐 Easing Library</span>
-        <button className="text-zinc-400 hover:text-white transition-colors" onClick={onClose}>✕</button>
+  // Determine points for preview
+  const currentPreviewCP = useMemo(() => {
+    if (parsedManual) return parsedManual.controlPoints;
+    if (selectedPreset) return selectedPreset.controlPoints;
+    return null;
+  }, [parsedManual, selectedPreset]);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      className="fixed z-[9999] w-[320px] flex flex-col bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-lg shadow-2xl overflow-hidden ring-1 ring-white/10 pointer-events-auto"
+      style={{
+        left: dragPosition ? dragPosition.x : initialPosition.x,
+        top: dragPosition ? dragPosition.y : initialPosition.y,
+        maxHeight: '500px',
+      }}
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
+      onPointerUp={e => e.stopPropagation()}
+    >
+      {/* Header - Draggable Area */}
+      <div
+        className="flex items-center justify-between p-3 border-b border-white/10 cursor-grab active:cursor-grabbing bg-white/5 shrink-0"
+        onMouseDown={handleDragStart}
+      >
+        <div className="flex items-center gap-2 pointer-events-none">
+          <GalleryVerticalEnd size={14} className="text-white" />
+          <span className="text-sm font-semibold text-white">Easing Presets</span>
+        </div>
+        <button
+          className="text-zinc-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded"
+          onClick={onClose}
+        >
+          <X size={14} />
+        </button>
       </div>
 
+      {/* Preview Section */}
+      {currentPreviewCP && (
+        <EasingPreview controlPoints={currentPreviewCP} />
+      )}
+
       {/* Search */}
-      <div className="p-3 border-b border-white/10">
-        <input
-          type="text"
-          placeholder="🔍 Search presets..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-md text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:border-[#4D96FF]"
-        />
+      <div className="p-3 border-b border-white/10 shrink-0">
+        <div className="relative">
+          <Search size={12} className="absolute left-2.5 top-2.5 text-zinc-500" />
+          <input
+            type="text"
+            placeholder="Search presets..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-3 py-2 bg-black/20 border border-white/10 rounded-md text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:border-[#4D96FF]"
+          />
+        </div>
       </div>
 
       {/* Categories */}
       <div className="flex-1 overflow-y-auto p-2">
         {/* Manual Input Section */}
         <div className="mb-2 p-3 bg-black/20 rounded-md border border-white/5">
-          <div className="text-[10px] text-zinc-500 uppercase mb-2">✏️ Custom Cubic-Bezier</div>
+          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase mb-2">
+            <PenTool size={10} />
+            <span>Custom Cubic-Bezier</span>
+          </div>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -288,10 +420,10 @@ export function EasingPresetPicker({
                 </svg>
                 <button
                   onClick={() => setShowSaveDialog(true)}
-                  className="p-1 hover:bg-white/10 rounded text-sm"
+                  className="p-1 hover:bg-white/10 rounded text-sm text-zinc-400 hover:text-white"
                   title="Save as preset"
                 >
-                  💾
+                  <Save size={14} />
                 </button>
               </div>
             )}
@@ -334,7 +466,9 @@ export function EasingPresetPicker({
                 onClick={() => toggleCategory(category.id)}
                 style={{ borderLeft: `3px solid ${category.color}` }}
               >
-                <span className="text-[10px] text-zinc-500 group-hover:text-zinc-300">{isExpanded ? '▼' : '▶'}</span>
+                <div className="text-zinc-500 group-hover:text-zinc-300">
+                  {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </div>
                 <span className="flex-1 text-xs font-medium text-zinc-300 group-hover:text-white uppercase from-neutral-300">{category.name}</span>
                 <span className="text-[10px] text-zinc-600">{presets.length}</span>
               </button>
@@ -363,7 +497,7 @@ export function EasingPresetPicker({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-white/10 flex flex-col gap-3">
+      <div className="p-3 border-t border-white/10 flex flex-col gap-3 shrink-0">
         {/* Apply Mode */}
         <div className="flex items-center gap-4 text-xs text-zinc-400">
           <span>Apply to:</span>
@@ -383,14 +517,16 @@ export function EasingPresetPicker({
 
         {/* Apply Button */}
         <button
-          className="w-full py-2 bg-[#4D96FF] hover:bg-[#007AFF] text-white rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-2 bg-[#4D96FF] hover:bg-[#007AFF] text-white rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
           onClick={handleApply}
           disabled={!selectedPreset && !parsedManual}
         >
-          ✓ Apply{selectedKeyframeCount > 0 ? ` (${selectedKeyframeCount} keyframes)` : ''}
+          <Check size={12} />
+          Apply{selectedKeyframeCount > 0 ? ` (${selectedKeyframeCount} keyframes)` : ''}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -427,11 +563,11 @@ function EasingCard({ preset, selected, onClick, onDoubleClick, onDelete }: Easi
       </button>
       {onDelete && (
         <button
-          className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+          className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           title="Delete preset"
         >
-          ✕
+          <X size={10} />
         </button>
       )}
     </div>

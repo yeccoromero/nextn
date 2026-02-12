@@ -6,7 +6,7 @@ import type { Patch } from 'immer';
 
 export type EasingId = 'linear' | 'inSine' | 'outSine' | 'inOutSine' | 'inQuad' | 'outQuad' | 'inOutQuad' | 'inCubic' | 'outCubic' | 'inOutCubic' | 'inQuart' | 'outQuart' | 'inOutQuart' | 'inQuint' | 'outQuint' | 'inOutQuint' | 'inExpo' | 'outExpo' | 'inOutExpo' | 'inCirc' | 'outCirc' | 'inOutCirc' | 'inBack' | 'outBack' | 'inOutBack';
 
-export type InterpolationType = 'linear' | 'hold' | 'ease' | 'bezier';
+export type InterpolationType = 'linear' | 'hold' | 'ease' | 'bezier' | 'ease-in' | 'ease-out';
 
 export type Tool = 'select' | 'rectangle' | 'ellipse' | 'star' | 'polygon' | 'text' | 'pan' | 'pen' | 'path-edit' | 'line' | 'add-node' | 'remove-node';
 

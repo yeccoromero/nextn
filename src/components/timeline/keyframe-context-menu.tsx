@@ -63,6 +63,24 @@ export function KeyframeContextMenu({
                     <span className="w-2 h-2 bg-current pointer-events-none" style={{ clipPath: 'polygon(50% 0%, 100% 0%, 50% 50%, 100% 100%, 0% 100%, 50% 50%, 0% 0%)' }} />
                     Ease
                 </ContextMenuItem>
+                <ContextMenuItem
+                    onSelect={() => handleSetInterpolation('ease-in')}
+                    onClick={() => handleSetInterpolation('ease-in')}
+                    className="gap-2 cursor-pointer"
+                    style={{ pointerEvents: 'auto' }}
+                >
+                    <span className="w-2 h-2 bg-current pointer-events-none" style={{ clipPath: 'polygon(0% 0%, 100% 50%, 0% 100%)' }} />
+                    Ease In
+                </ContextMenuItem>
+                <ContextMenuItem
+                    onSelect={() => handleSetInterpolation('ease-out')}
+                    onClick={() => handleSetInterpolation('ease-out')}
+                    className="gap-2 cursor-pointer"
+                    style={{ pointerEvents: 'auto' }}
+                >
+                    <span className="w-2 h-2 bg-current pointer-events-none" style={{ clipPath: 'polygon(100% 0%, 0% 50%, 100% 100%)' }} />
+                    Ease Out
+                </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem
                     onSelect={handleDelete}
@@ -73,6 +91,6 @@ export function KeyframeContextMenu({
                     Delete Keyframe
                 </ContextMenuItem>
             </ContextMenuContent>
-        </ContextMenu>
+        </ContextMenu >
     );
 }

@@ -10,9 +10,12 @@ import { getMsPerPx, msToX, pxToMs, BASE_PX_PER_SECOND } from '@/lib/anim/utils'
 import { clamp, cn } from '@/lib/utils';
 import { formatTime } from './transport';
 import { PropertyId, InterpolationType } from "@/types/editor";
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Sparkles } from 'lucide-react';
 import { TimelineNavigator } from './timeline-navigator';
 import dynamic from 'next/dynamic';
+import { EasingPresetPicker } from './easing-preset-picker';
+import { EasingPreset } from '@/lib/easing-presets';
+import { PropertyTrack } from '@/types/editor';
 
 const ManualContextMenu = dynamic(() => import('./manual-context-menu').then(mod => mod.ManualContextMenu), { ssr: false });
 const GraphEditorPanel = dynamic(() => import('./graph-editor-panel').then(mod => mod.GraphEditorPanel), { ssr: false });
@@ -29,6 +32,27 @@ type MarqueeRect = {
   width: number;
   height: number;
 };
+
+// Start Helper: getSelectedTracks (Duplicated from GraphEditorPanel for safety/independence)
+function getSelectedTracks(state: any): { objectId: string, track: PropertyTrack }[] {
+  const selectedIds = state.selectedObjectIds || [];
+  const tracks: { objectId: string, track: PropertyTrack }[] = [];
+  if (selectedIds.length === 0) return tracks;
+  for (const objId of selectedIds) {
+    const layer = state.timeline.layers[objId];
+    if (!layer) continue;
+    for (const track of layer.properties) {
+      // Broad check for typical animatable props
+      if (['position', 'x', 'y', 'scale', 'scaleX', 'scaleY', 'rotation', 'opacity', 'fill', 'stroke', 'width', 'height', 'fontSize'].includes(track.id)) {
+        if (track.keyframes.length > 0) {
+          tracks.push({ objectId: objId, track });
+        }
+      }
+    }
+  }
+  return tracks;
+}
+// End Helper
 
 function Playhead({ panelWidth, leftOffset, originMs, msPerPx }: { panelWidth: number, leftOffset: number, originMs: number, msPerPx: number }) {
   const { state } = useEditor();
@@ -50,10 +74,10 @@ function Playhead({ panelWidth, leftOffset, originMs, msPerPx }: { panelWidth: n
       style={{ left, top: TOP_SPACER_H }}
       data-nomarquee
     >
-      <div className="absolute top-0 left-0 -translate-x-1/2 px-1.5 py-0.5 rounded-sm bg-orange-500 text-white text-[10px] font-mono">
+      <div className="absolute top-0 left-0 -translate-x-1/2 px-1.5 py-0.5 rounded-sm bg-blue-500 text-white text-[10px] font-mono shadow-md shadow-blue-500/20">
         {formatTime(playheadMs, fps)}
       </div>
-      <div className="absolute top-[18px] left-0 w-px h-full bg-orange-500" />
+      <div className="absolute top-[18px] left-0 w-px h-full bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.5)]" />
     </div>
   );
 }
@@ -180,11 +204,16 @@ export default function TimelinePanel() {
   const [panelWidth, setPanelWidth] = useState(0);
   const [originMs, setOriginMs] = useState(0);
 
+  // Easing Preset Picker
+  const [showPresetPicker, setShowPresetPicker] = useState(false);
+  const [presetAnchor, setPresetAnchor] = useState<{ x: number, y: number } | undefined>(undefined);
+
   const [viewMode, setViewMode] = useState<'dopesheet' | 'graph'>('dopesheet');
 
   const zoomInteractionRef = useRef<{ tCursor: number, xCursorPx: number } | null>(null);
   const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
   const marqueeStartRef = useRef<{ x: number, y: number } | null>(null);
+  const marqueeRafRef = useRef<number | null>(null);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -451,11 +480,23 @@ export default function TimelinePanel() {
     const x = e.clientX - cRect.left + scrollX;
     const y = e.clientY - cRect.top + scrollY;
 
-    const { x: sx, y: sy } = marqueeStartRef.current;
-    setMarqueeRect({ x: Math.min(x, sx), y: Math.min(y, sy), width: Math.abs(x - sx), height: Math.abs(y - sy) });
+    if (marqueeRafRef.current) {
+      cancelAnimationFrame(marqueeRafRef.current);
+    }
+
+    marqueeRafRef.current = requestAnimationFrame(() => {
+      if (!marqueeStartRef.current) return;
+      const { x: sx, y: sy } = marqueeStartRef.current;
+      setMarqueeRect({ x: Math.min(x, sx), y: Math.min(y, sy), width: Math.abs(x - sx), height: Math.abs(y - sy) });
+      marqueeRafRef.current = null;
+    });
   };
 
   const handleTracksPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (marqueeRafRef.current) {
+      cancelAnimationFrame(marqueeRafRef.current);
+      marqueeRafRef.current = null;
+    }
     const container = e.currentTarget;
     container.releasePointerCapture(e.pointerId);
 
@@ -562,6 +603,99 @@ export default function TimelinePanel() {
     });
   };
 
+
+  const handleApplyPreset = (preset: EasingPreset, mode: 'out' | 'in' | 'both') => {
+    const { x1, y1, x2, y2 } = preset.controlPoints;
+    // Get selected keyframes IDs first
+    const selectedKeyIds = state.timeline.selection?.keyIds || [];
+    const selectedTracks = getSelectedTracks(state);
+
+    if (selectedKeyIds.length === 0 && selectedTracks.length === 0) return;
+
+    // If specific keyframes are selected, apply ONLY to them.
+    // If NO keyframes are explicitly selected but Tracks ARE, apply to ALL keyframes in tracks?
+    // Logic from GraphEditor was: "Apply to all keyframes in all selected tracks".
+    // Let's keep that logic for "Global Apply".
+
+    const tracksToProcess = selectedTracks;
+
+    tracksToProcess.forEach(({ objectId, track }) => {
+      const sortedKfs = [...track.keyframes].sort((a, b) => a.timeMs - b.timeMs);
+
+      sortedKfs.forEach((kf, index) => {
+        // Apply if:
+        // 1. It is explicitly selected OR
+        // 2. No explicit selection exists (Global Apply Mode) - WAIT, risky.
+        // Better: Only apply if it is selected.
+        // BUT GraphEditor logic applied to ALL in track.
+        // Let's stick to "If keyframe is selected" OR "If no keys selected, apply to all in selected object".
+
+        const isSelected = selectedKeyIds.includes(kf.id);
+        const shouldApply = selectedKeyIds.length > 0 ? isSelected : true;
+
+        if (!shouldApply) return;
+        if (index >= sortedKfs.length - 1) return; // Skip last keyframe (no out curve)
+
+        const currentCp = kf.controlPoints || { x1: 0.33, y1: 0, x2: 0.67, y2: 1 };
+        let newCp: { x1: number; y1: number; x2: number; y2: number };
+
+        if (mode === 'out') {
+          newCp = { x1, y1, x2: currentCp.x2, y2: currentCp.y2 };
+        } else if (mode === 'in') {
+          newCp = { x1: currentCp.x1, y1: currentCp.y1, x2, y2 };
+        } else {
+          newCp = { x1, y1, x2, y2 };
+        }
+
+        // Determine Interpolation Type based on Preset and Mode
+        let newInterpolation: InterpolationType = 'bezier'; // Default
+
+        if (preset.id === 'linear') {
+          newInterpolation = 'linear';
+        } else {
+          // Basic logic: 
+          // If preset ends with '-in', it's Ease In.
+          // If preset ends with '-out', it's Ease Out.
+          // If preset ends with '-in-out' or just 'ease', it's Ease (Hourglass).
+          // If it's a manual curve (bezier), we default to 'bezier' (Circle).
+
+          if (preset.id.endsWith('-in')) {
+            newInterpolation = 'ease-in';
+          } else if (preset.id.endsWith('-out')) {
+            newInterpolation = 'ease-out';
+          } else if (preset.id.endsWith('-in-out') || preset.id === 'ease') {
+            newInterpolation = 'ease';
+          } else if (preset.category === 'custom') {
+            // For custom presets, try to guess or default to bezier?
+            // If we want "Advanced" visual, let's strictly stick to matching IDs.
+            newInterpolation = 'bezier';
+          }
+        }
+
+        dispatch({
+          type: 'UPDATE_KEYFRAME_CONTROL_POINTS',
+          payload: {
+            objectId,
+            propertyId: track.id,
+            keyframeId: kf.id,
+            controlPoints: newCp
+          }
+        });
+
+        dispatch({
+          type: 'SET_KEYFRAME_INTERPOLATION',
+          payload: {
+            objectId,
+            propertyId: track.id,
+            keyframeId: kf.id,
+            interpolationType: newInterpolation
+          }
+        });
+      });
+    });
+    setShowPresetPicker(false);
+  };
+
   return (
     <div
       className="
@@ -602,6 +736,29 @@ export default function TimelinePanel() {
             </svg>
           </button>
         </div>
+
+        {/* Separator */}
+        <div className="w-px h-4 bg-border mx-2" />
+
+        {/* Easing Picker Toggle */}
+        <div className="flex bg-muted rounded p-0.5">
+          <button
+            ref={(el) => {
+              if (el && !presetAnchor) {
+                // Store detailed position? No, simplistic is fine.
+              }
+            }}
+            onClick={(e) => {
+              setPresetAnchor({ x: e.clientX, y: e.clientY + 20 });
+              setShowPresetPicker(!showPresetPicker);
+            }}
+            className={cn("p-1 rounded hover:bg-background/50", showPresetPicker && "bg-amber-500/20 text-amber-500")}
+            title="Easing Presets"
+          >
+            <Sparkles size={12} />
+          </button>
+        </div>
+
       </div>
       <div className="col-[2] row-[1] bg-background/70 flex items-center justify-end px-3 gap-2">
         <TimelineNavigator
@@ -635,7 +792,7 @@ export default function TimelinePanel() {
       </div>
       <div
         ref={localTracksContainerRef}
-        className="col-[2] row-[3] overflow-auto relative touch-none hide-scrollbar"
+        className="col-[2] row-[3] overflow-auto relative touch-none hide-scrollbar bg-zinc-900/30"
         onPointerDown={handleTracksPointerDown}
         onPointerMove={handleTracksPointerMove}
         onPointerUp={handleTracksPointerUp}
@@ -686,6 +843,14 @@ export default function TimelinePanel() {
           objectId={contextMenu.objectId}
           propertyId={contextMenu.propertyId}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+      {showPresetPicker && (
+        <EasingPresetPicker
+          onApply={handleApplyPreset}
+          onClose={() => setShowPresetPicker(false)}
+          selectedKeyframeCount={state.timeline.selection?.keyIds?.length || 0}
+          anchorPosition={presetAnchor}
         />
       )}
     </div>

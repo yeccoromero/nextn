@@ -7,6 +7,59 @@ Este archivo documenta **todos los cambios notables** del proyecto con referenci
 
 ---
 
+## [0.5.0] - WIP | Tag: `v0.5.0`
+
+**🔖 Rollback a esta versión:** `git checkout [CURRENT_COMMIT]`
+
+> **🚀 BASELINE v0.5.0**: Inicio del ciclo de mejoras y nuevas funcionalidades.
+
+### ✨ Nuevas Funcionalidades
+| Feature | Descripción | Origen |
+|---------|-------------|--------|
+| **Baseline** | Inicio de versión 0.5.0. | `Plan` |
+| **Smart Keyframes** | Visualización avanzada: Formas distintivas (Linear, Hold, Ease In/Out), tamaño ajustado (13px) y scaling inteligente. | `implementation_plan` |
+
+---
+
+## [0.4.0] - 2026-02-11 | Tag: `v0.4.0`
+
+**🔖 Rollback a esta versión:** `git checkout [CURRENT_COMMIT]`
+
+> **🚀 BASELINE RESET**: Esta versión establece el nuevo punto de partida para el ciclo de desarrollo.
+
+## [0.4.0] - 2026-02-12 | Tag: `v0.4.0`
+
+**🔖 Rollback a esta versión:** `git checkout [CURRENT_COMMIT]`
+
+### ✨ Nuevas Funcionalidades
+| Feature | Descripción | Origen |
+|---------|-------------|--------|
+| **Floating Presets** | Palette de presets global, desacoplada del editor gráfico (Timeline Panel). | `Bitácora 09:30` |
+| **Global Access** | Presets aplicables a cualquier track seleccionado sin focus en el editor. | `Bitácora 09:30` |
+| **Edit Curve** | Acceso contextual al "Bezier Editor" para cirugía de precisión. | `Bitácora 10:15` |
+
+### 🐛 Correciones
+| Bug | Descripción | Origen |
+|-----|-------------|--------|
+| **DataCloneError** | Fix crash al copiar keyframes con Immer Proxies (`structuredClone` -> `spread`). | `Bitácora 10:00` |
+| **Undo/Redo Spam** | Fix historial inutilizable al arrastrar handles (Transient Updates). | `Bitácora 11:30` |
+| **Preset Drag Logic** | Fix "pegado" del preset picker al cursor. | `Bitácora 08:52` |
+
+### 📚 Documentación
+| Doc | Descripción | Origen |
+|-----|-------------|--------|
+| **Anime.js Strategy** | Architecture doc para futura integración de curvas complejas. | `research/` |
+| **Bitácora Sync** | Actualización completa de logs y Guía de Usuario. | `BITACORA.md` |
+
+---
+
+## [0.3.0]
+| Feature | Descripción | Origen |
+|---------|-------------|--------|
+| **Baseline Reset** | Inicio de nuevo ciclo. Consolidación de Graph Editor y estabilidad. | `Plan 22:00` |
+
+---
+
 ## [0.3.0] - 2026-02-11 | Tag: `v0.3.0`
 
 **🔖 Rollback a esta versión:** `git checkout [CURRENT_COMMIT]`

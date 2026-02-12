@@ -76,10 +76,12 @@ export function getValueAtTime<T>(keyframes: Keyframe[] | undefined, timeMs: num
   let k = t;
 
   // Handle TEMPORAL Interpolation (Time warping)
-  if (a.interpolation === 'bezier' && a.controlPoints) {
+  // Check if we have control points (Cubic Bezier) - this applies to 'bezier' and the new directional types if they have points
+  if ((a.interpolation === 'bezier' || a.interpolation === 'ease' || a.interpolation === 'ease-in' || a.interpolation === 'ease-out') && a.controlPoints) {
     k = solveCubicBezier(a.controlPoints.x1, a.controlPoints.y1, a.controlPoints.x2, a.controlPoints.y2, t);
   }
   else if (a.interpolation === 'ease') {
+    // Legacy fallback for 'ease' without control points
     k = easeValueLegacy(a.easing || 'inOutQuad', t);
   }
   else {
