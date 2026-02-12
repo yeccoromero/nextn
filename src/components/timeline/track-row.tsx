@@ -97,7 +97,7 @@ export const TrackRow = memo(({
       )}
       style={{ height: rowHeight }}
       onPointerDownCapture={handleRowPointerDownCapture}
-      onPointerDown={handleRowPointerDown}
+    // onPointerDown={handleRowPointerDown} // Disable track sliding from empty space to allow marquee
     >
       <div className={cn("absolute inset-0 transition-colors pointer-events-none", isLayerSelected ? "bg-primary/10" : "bg-[rgba(34,34,37,0.55)]")} />
       <div className="absolute left-0 right-0 bottom-0 h-px bg-black/40 pointer-events-none" />
@@ -116,28 +116,38 @@ export const TrackRow = memo(({
             }}
             className={cn(
               "absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing",
-              isGroup ? "rounded-md" : "rounded-sm",
-              "border",
-              (clip.selected || isLayerSelected) ? "border-white/15 ring-1 ring-white/10" : "border-black/30",
-              clip.disabled && "opacity-60"
+              "rounded-md shadow-sm backdrop-blur-sm", // Rounded pill shape
+              "border border-white/10", // Subtle border
+              (clip.selected || isLayerSelected)
+                ? "bg-violet-500/90 ring-1 ring-white/30 z-10"
+                : "bg-zinc-700/60 hover:bg-zinc-700/80", // Darker, cleaner look for unselected
+              clip.disabled && "opacity-60 grayscale"
             )}
             style={{
               left: x,
               width: w,
-              height: rowHeight - 8,
-              background: clipColor,
+              height: rowHeight - 6, // Slightly shorter for "floating" look
+              // background: clipColor, // Removed inline style in favor of Tailwind classes
             }}
           >
+            {/* Left Grip */}
             <div
               data-clip-grip
               data-nomarquee
-              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
+              className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/10 rounded-l-md transition-colors"
               onPointerDown={(e) => { e.stopPropagation(); onBeginResizeStart?.(clip.id, e); }}
             />
+
+            {/* Label (Optional, good for debugging/UX) */}
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-medium text-white/70 pointer-events-none truncate px-1" style={{ maxWidth: w - 16 }}>
+              {/* {clip.name || 'Clip'} */}
+            </span>
+
+            {/* Right Grip */}
             <div
               data-clip-grip
               data-nomarquee
-              className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+              className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/10 rounded-r-md transition-colors"
               onPointerDown={(e) => { e.stopPropagation(); onBeginResizeEnd?.(clip.id, e); }}
             />
           </div>

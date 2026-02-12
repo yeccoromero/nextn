@@ -5,12 +5,11 @@ import { createPortal } from 'react-dom';
 import { useEditor } from '@/context/editor-context';
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+// Popover removed in favor of floating palette
 import { cn } from '@/lib/utils';
 import { msToX } from '@/lib/anim/utils';
 import { SvgObject, PropertyTrack, Keyframe, PropertyId } from '@/types/editor';
-import { ZoomIn, ZoomOut, Play, Pause, Sparkles, ChevronDown, Check, ChevronsUpDown } from 'lucide-react';
-import { EasingPresetPicker } from './easing-preset-picker';
+import { ZoomIn, ZoomOut, Play, Pause, ChevronDown, Check, ChevronsUpDown } from 'lucide-react';
 import { EasingPreset } from '@/lib/easing-presets';
 import { cubicBezierOneAxis, cubicBezierDerivativeOneAxis, solveBezierT } from '@/lib/anim/math-core';
 
@@ -94,13 +93,9 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
     const [hoveredHandleId, setHoveredHandleId] = useState<string | null>(null);
     const [hoveredType, setHoveredType] = useState<'in' | 'out' | 'keyframe' | null>(null);
 
-    // SEGMENT SELECTION: Only the selected segment's handles are interactive
-    const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
 
-    // EASING PRESET PICKER
-    const [showPresetPicker, setShowPresetPicker] = useState(false);
-    const [presetAnchorPosition, setPresetAnchorPosition] = useState<{ x: number; y: number } | null>(null);
-    const presetsButtonRef = useRef<HTMLButtonElement>(null);
+
+
 
     const selectedTracks = getSelectedTracks(state);
 
@@ -118,43 +113,8 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
     }, [originMs, msPerPx, zoomX, panOffset]);
 
     // Apply easing preset to ALL keyframes in selected tracks (Phase 9.2)
-    const handleApplyPreset = useCallback((preset: EasingPreset, mode: 'out' | 'in' | 'both') => {
-        const { x1, y1, x2, y2 } = preset.controlPoints;
+    // Removed handleApplyPreset as it is now in TimelinePanel.
 
-        // Apply to all keyframes in all selected tracks
-        selectedTracks.forEach(({ objectId, track }) => {
-            const sortedKfs = [...track.keyframes].sort((a, b) => a.timeMs - b.timeMs);
-
-            // Apply to each keyframe except the last (which has no "out" curve)
-            sortedKfs.forEach((kf, index) => {
-                if (index >= sortedKfs.length - 1) return; // Skip last keyframe
-
-                const currentCp = kf.controlPoints || { x1: 0.33, y1: 0, x2: 0.67, y2: 1 };
-
-                let newCp: { x1: number; y1: number; x2: number; y2: number };
-
-                if (mode === 'out') {
-                    newCp = { x1, y1, x2: currentCp.x2, y2: currentCp.y2 };
-                } else if (mode === 'in') {
-                    newCp = { x1: currentCp.x1, y1: currentCp.y1, x2, y2 };
-                } else {
-                    newCp = { x1, y1, x2, y2 };
-                }
-
-                dispatch({
-                    type: 'UPDATE_KEYFRAME_CONTROL_POINTS',
-                    payload: {
-                        objectId,
-                        propertyId: track.id,
-                        keyframeId: kf.id,
-                        controlPoints: newCp
-                    }
-                });
-            });
-        });
-
-        setShowPresetPicker(false);
-    }, [selectedTracks, dispatch]);
 
     const handleZoomIn = () => setZoomX(prev => Math.min(prev * 1.5, 10));
     const handleZoomOut = () => setZoomX(prev => Math.max(prev / 1.5, 0.25));
@@ -542,7 +502,8 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     controlPoints: (type === 'out'
                         ? { x1: newX, y1: newY }
                         : { x2: newX, y2: newY }) as any
-                }
+                },
+                transient: true // Don't spam history during drag
             });
 
             // --- TANGENT COUPLING FOR THIS HANDLE ---
@@ -681,7 +642,8 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                                             x1: Math.max(0, Math.min(1, oppNewX)),
                                             y1: oppNewY
                                         } as any
-                                    }
+                                    },
+                                    transient: true
                                 });
                             }
                         }
@@ -844,33 +806,41 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
             marqueeStartRef.current = { x: e.clientX, y: e.clientY };
             (e.target as HTMLElement).setPointerCapture(e.pointerId);
         }
-    }, [hitTestHandles, setSelectedHandle]);
+    }, [hitTestHandles, setSelectedHandle, state.timeline.selection.keyIds, dispatch]);
 
     const handlePointerUp = useCallback((e: React.PointerEvent) => {
         // Drag Handling
-        if (dragTargetRef.current) {
-
-            // Check for "Click without Drag" on a previously selected item
-            if (dragStartRef.current?.shouldSelectExclusiveOnUp && !dragStartRef.current?.hasMoved) {
-                dispatch({
-                    type: 'SELECT_KEYFRAME',
-                    payload: {
-                        objectId: dragTargetRef.current.handle.objectId,
-                        propertyId: dragTargetRef.current.handle.propertyId as PropertyId,
-                        keyframeId: dragTargetRef.current.handle.kfId,
-                        additive: false // Exclusive select
-                    }
-                });
+        if (dragStartRef.current) {
+            // Check if we actually moved locally or if we should trigger commit
+            // The 'hasMoved' flag in dragStartRef tracks if a drag threshold was met
+            if (dragStartRef.current.hasMoved) {
+                // Commit the transient state to history
+                dispatch({ type: 'COMMIT_DRAG' });
+            } else if (dragStartRef.current.shouldSelectExclusiveOnUp) {
+                // If we didn't drag, but we clicked an already selected item (without shift),
+                // we should now select exclusively this item (deselect others).
+                // But only if we are still over the same item? 
+                // We know it was a 'click' intent.
+                if (selectedHandle) {
+                    dispatch({
+                        type: 'SELECT_KEYFRAME',
+                        payload: {
+                            objectId: selectedHandle.objectId,
+                            propertyId: selectedHandle.propertyId as PropertyId,
+                            keyframeId: selectedHandle.kfId,
+                            additive: false
+                        }
+                    });
+                }
             }
-
-            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-            dragTargetRef.current = null;
             dragStartRef.current = null;
-            const canvas = canvasRef.current;
-            if (canvas) canvas.style.cursor = 'default';
-            return;
+            dragTargetRef.current = null;
+            setSelectedHandle(null);
         }
 
+        const canvas = canvasRef.current;
+        if (canvas) canvas.style.cursor = 'default';
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
         // Marquee Handling
         if (marqueeStartRef.current) {
             // Check if it was a drag (width/height > 2px)
@@ -2223,31 +2193,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     </>
                 )}
 
-                <Popover open={showPresetPicker} onOpenChange={setShowPresetPicker}>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant={showPresetPicker ? 'default' : 'ghost'}
-                            size="sm"
-                            className={cn(
-                                "h-7 px-2 text-xs font-medium gap-1",
-                                showPresetPicker
-                                    ? "bg-amber-500 text-black hover:bg-amber-400"
-                                    : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/50"
-                            )}
-                            title="Easing Presets Library"
-                        >
-                            <Sparkles size={12} />
-                            Presets
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[420px] p-0 border-none bg-transparent shadow-none" side="top" align="end" sideOffset={8}>
-                        <EasingPresetPicker
-                            onApply={handleApplyPreset}
-                            onClose={() => setShowPresetPicker(false)}
-                            selectedKeyframeCount={selectedTracks.reduce((sum, t) => sum + Math.max(0, t.track.keyframes.length - 1), 0)}
-                        />
-                    </PopoverContent>
-                </Popover>
+                {/* Easing Picker Removed */}
             </div>
 
             {/* Legend */}

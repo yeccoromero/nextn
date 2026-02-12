@@ -6,6 +6,7 @@ import { useEditor } from "@/context/editor-context";
 import { msToX, pxToMs } from "@/lib/anim/utils";
 import type { PropertyId, Keyframe as KeyframeType } from "@/types/editor";
 import { Keyframe } from "./keyframe";
+import { cn } from "@/lib/utils";
 
 export function PropertyTrackRow({
   objectId,
@@ -137,17 +138,63 @@ export function PropertyTrackRow({
     dispatch({ type: 'SELECT_OBJECT', payload: { id: objectId, shiftKey: e.shiftKey } });
 
     const el = e.target as HTMLElement;
+    // Don't modify selection if clicking on a keyframe
     if (el.closest('[data-keyframe-id]')) return;
   };
 
+  // --- CONNECTORS LOGIC ---
+  const connectors = useMemo(() => {
+    const lines: React.ReactNode[] = [];
+
+    tracksToShow.forEach(track => {
+      // Sort keyframes by time to ensure correct connections
+      const sortedKfs = [...track.keyframes].sort((a, b) => a.timeMs - b.timeMs);
+
+      for (let i = 0; i < sortedKfs.length - 1; i++) {
+        const kf1 = sortedKfs[i];
+        const kf2 = sortedKfs[i + 1];
+
+        // Calculate positions
+        const x1 = msToX((layerTrack?.startMs ?? 0) + kf1.timeMs, originMs, msPerPx);
+        const x2 = msToX((layerTrack?.startMs ?? 0) + kf2.timeMs, originMs, msPerPx);
+
+        // Skip if outside view (optimization) or if x2 < x1 (shouldn't happen with sort)
+        // Simple culling: if both are way left or way right
+        // We'll leave it simple for now.
+
+        // Determine color based on selection or track type
+        const isSelected = selectedSet.has(kf1.id) && selectedSet.has(kf2.id);
+        const strokeColor = isSelected ? "#0ea5e9" : "#6366f1"; // Sky-500 if selected, Indigo-500 if not
+
+        lines.push(
+          <line
+            key={`conn-${kf1.id}-${kf2.id}`}
+            x1={x1}
+            y1="50%"
+            x2={x2}
+            y2="50%"
+            stroke={strokeColor}
+            strokeWidth={2}
+            className="opacity-80 pointer-events-none"
+          />
+        );
+      }
+    });
+    return lines;
+  }, [tracksToShow, layerTrack, originMs, msPerPx, selectedSet]);
+
   return (
     <div
-      className="relative w-full select-none"
-      style={{ height: rowHeight }}
+      className="relative w-full select-none my-0.5" // Removed rounded-md overflow-hidden from container
+      style={{ height: rowHeight - 2 }} // Subtract margin
       onPointerDown={handleRowPointerDown}
     >
-      <div className="absolute inset-0 bg-background/50" />
-      <div className="absolute left-0 right-0 bottom-0 h-px bg-black/40" />
+      <div className="absolute inset-0 bg-zinc-800/40 border border-white/5 rounded-md" />
+
+      {/* Connector Layer */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+        {connectors}
+      </svg>
 
       {tracksToShow.flatMap(track =>
         track.keyframes.map(kf => {

@@ -113,7 +113,7 @@ type EditorAction = (
   | { type: 'DUPLICATE_SELECTED_OBJECTS' }
   | { type: 'UPDATE_KEYFRAME_CONTROL_POINTS'; payload: { objectId: string; propertyId: PropertyId; keyframeId: string; controlPoints: { x1: number; y1: number; x2: number; y2: number } } }
   | { type: 'SET_KEYFRAME_TANGENT_MODE'; payload: { objectId: string; propertyId: PropertyId; keyframeId: string; mode: 'broken' | 'smooth' | 'auto' } }
-) & { meta?: { history?: "ignore" | { groupId: string } } };
+) & { meta?: { history?: "ignore" | { groupId: string } }; transient?: boolean };
 
 
 interface ZoomActions {
@@ -409,9 +409,9 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
                   easing: kf.easing,
                   interpolation: kf.interpolation,
                   tangentMode: kf.tangentMode,
-                  controlPoints: kf.controlPoints ? structuredClone(kf.controlPoints) : undefined,
-                  spatialTangentIn: kf.spatialTangentIn ? structuredClone(kf.spatialTangentIn) : undefined,
-                  spatialTangentOut: kf.spatialTangentOut ? structuredClone(kf.spatialTangentOut) : undefined,
+                  controlPoints: kf.controlPoints ? { ...kf.controlPoints } : undefined,
+                  spatialTangentIn: kf.spatialTangentIn ? { ...kf.spatialTangentIn } : undefined,
+                  spatialTangentOut: kf.spatialTangentOut ? { ...kf.spatialTangentOut } : undefined,
                   propertyId: propTrack.id,
                   objectId: layer.objectId,
                 });

@@ -131,7 +131,12 @@ const TrackContent = ({
       if (deltaToApply === 0) return;
 
       if (type === 'move') {
-        dispatch({ type: 'MOVE_CLIP', payload: { clipId, dMs: deltaToApply }, transient: true });
+        // Use SLIDE_LAYER_TRACKS instead of MOVE_CLIP to sync all properties/keyframes
+        dispatch({
+          type: 'SLIDE_LAYER_TRACKS',
+          payload: { objectIds: [clipId], dMs: deltaToApply },
+          transient: true
+        });
       } else if (type === 'resize-start') {
         dispatch({ type: 'RESIZE_CLIP_START', payload: { clipId, dMs: deltaToApply }, transient: true });
       } else {
@@ -303,6 +308,9 @@ export default function TracksView({ scrollRef, panelWidth, originMs, msPerPx, o
           </div>
         )
       })}
+
+      {/* Global Vertical Grid Lines (Overlay) */}
+      <div className="absolute inset-0 pointer-events-none z-0 bg-zinc-950/30" style={{ backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent ${msToX(1000, 0, msPerPx) - 1}px, rgba(255,255,255,0.05) ${msToX(1000, 0, msPerPx)}px)` }}></div>
     </div>
   );
 }

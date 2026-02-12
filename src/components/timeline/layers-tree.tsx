@@ -267,18 +267,18 @@ const PropertyRowUI = ({
     if (propertyId === 'position') {
       const pos = { x: object.x, y: object.y };
       return (
-        <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+        <div className="flex items-center gap-3 text-xs text-blue-400 font-medium tabular-nums">
           <div className="flex items-center gap-1" onDoubleClick={() => handleDoubleClick('x')}>
-            <span className="opacity-70 cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'x')}>X</span>
+            <span className="opacity-50 cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'x')}>X</span>
             {editingField === 'x' ? (
               <EditableValueInput initialValue={fmt(pos.x, 1)} onCommit={(v) => handleCommitEdit('x', v)} onCancel={() => setEditingField(null)} />
-            ) : <span className="text-foreground/90 w-12 text-right cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'x')}>{fmt(pos.x, 1)}</span>}
+            ) : <span className="w-12 text-right cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'x')}>{fmt(pos.x, 1)}</span>}
           </div>
           <div className="flex items-center gap-1" onDoubleClick={() => handleDoubleClick('y')}>
-            <span className="opacity-70 cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'y')}>Y</span>
+            <span className="opacity-50 cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'y')}>Y</span>
             {editingField === 'y' ? (
               <EditableValueInput initialValue={fmt(pos.y, 1)} onCommit={(v) => handleCommitEdit('y', v)} onCancel={() => setEditingField(null)} />
-            ) : <span className="text-foreground/90 w-12 text-right cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'y')}>{fmt(pos.y, 1)}</span>}
+            ) : <span className="w-12 text-right cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'y')}>{fmt(pos.y, 1)}</span>}
           </div>
         </div>
       );
@@ -287,18 +287,18 @@ const PropertyRowUI = ({
       const sx = (object.scaleX ?? 1) * 100;
       const sy = (object.scaleY ?? 1) * 100;
       return (
-        <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+        <div className="flex items-center gap-3 text-xs text-blue-400 font-medium tabular-nums">
           <div className="flex items-center gap-1" onDoubleClick={() => handleDoubleClick('x')}>
-            <span className="opacity-70 cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'x')}>X</span>
+            <span className="opacity-50 cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'x')}>X</span>
             {editingField === 'x' ? (
               <EditableValueInput initialValue={fmt(sx, 1)} onCommit={(v) => handleCommitEdit('x', v)} onCancel={() => setEditingField(null)} />
-            ) : <span className="text-foreground/90 w-12 text-right cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'x')}>{fmt(sx, 1)}%</span>}
+            ) : <span className="w-12 text-right cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'x')}>{fmt(sx, 1)}%</span>}
           </div>
           <div className="flex items-center gap-1" onDoubleClick={() => handleDoubleClick('y')}>
-            <span className="opacity-70 cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'y')}>Y</span>
+            <span className="opacity-50 cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'y')}>Y</span>
             {editingField === 'y' ? (
               <EditableValueInput initialValue={fmt(sy, 1)} onCommit={(v) => handleCommitEdit('y', v)} onCancel={() => setEditingField(null)} />
-            ) : <span className="text-foreground/90 w-12 text-right cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'y')}>{fmt(sy, 1)}%</span>}
+            ) : <span className="w-12 text-right cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'y')}>{fmt(sy, 1)}%</span>}
           </div>
         </div>
       );
@@ -306,24 +306,58 @@ const PropertyRowUI = ({
     if (propertyId === 'rotation') {
       const r = object.rotation ?? 0;
       return (
-        <div className="flex justify-end tabular-nums" onDoubleClick={() => handleDoubleClick('value')}>
+        <div className="flex justify-end tabular-nums text-xs text-blue-400 font-medium" onDoubleClick={() => handleDoubleClick('value')}>
           {editingField === 'value' ? (
             <EditableValueInput initialValue={fmt(r, 1)} onCommit={(v) => handleCommitEdit('value', v)} onCancel={() => setEditingField(null)} />
-          ) : <span className="text-foreground/90 w-12 text-right cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'value')}>{fmt(r, 1)}°</span>}
+          ) : <span className="w-12 text-right cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'value')}>{fmt(r, 1)}°</span>}
         </div>
       );
     }
     if (propertyId === 'opacity') {
       const o = (object.opacity ?? 1) * 100;
       return (
-        <div className="flex justify-end tabular-nums" onDoubleClick={() => handleDoubleClick('value')}>
+        <div className="flex justify-end tabular-nums text-xs text-blue-400 font-medium" onDoubleClick={() => handleDoubleClick('value')}>
           {editingField === 'value' ? (
             <EditableValueInput initialValue={fmt(o, 0)} onCommit={(v) => handleCommitEdit('value', v)} onCancel={() => setEditingField(null)} />
-          ) : <span className="text-foreground/90 w-12 text-right cursor-ew-resize" onPointerDown={(e) => handleScrub(e, 'value')}>{fmt(o, 0)}%</span>}
+          ) : <span className="w-12 text-right cursor-ew-resize hover:text-blue-300" onPointerDown={(e) => handleScrub(e, 'value')}>{fmt(o, 0)}%</span>}
         </div>
       );
     }
     return <div className="text-xs text-muted-foreground text-right pr-2">—</div>;
+  };
+
+  const handleJumpKeyframe = (direction: 'prev' | 'next') => {
+    if (!hasAnyKeyframes || !propTrack) return;
+
+    // Tolerance for floating point
+    const tolerance = 0.01;
+    const current = timeline.playheadMs;
+
+    const sorted = [...propTrack.keyframes].sort((a, b) => a.timeMs - b.timeMs);
+
+    let targetTime: number | null = null;
+
+    if (direction === 'prev') {
+      // Find last keyframe strictly less than current (minus tolerance)
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        if (sorted[i].timeMs < current - tolerance) {
+          targetTime = sorted[i].timeMs;
+          break;
+        }
+      }
+    } else {
+      // Find first keyframe strictly greater than current
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i].timeMs > current + tolerance) {
+          targetTime = sorted[i].timeMs;
+          break;
+        }
+      }
+    }
+
+    if (targetTime !== null) {
+      dispatch({ type: 'SET_TIMELINE_PLAYHEAD', payload: targetTime });
+    }
   };
 
   return (
@@ -345,7 +379,7 @@ const PropertyRowUI = ({
       <div
         className={cn(
           "h-full w-full",
-          "grid grid-cols-[1fr_auto_32px] items-center",
+          "grid grid-cols-[1fr_auto_auto] items-center gap-2", // Adjusted grid
           "rounded-md",
           "bg-transparent hover:bg-accent/30",
           "px-2"
@@ -362,26 +396,64 @@ const PropertyRowUI = ({
           {renderValues()}
         </div>
 
-        <button
-          type="button"
-          onClick={handleAddKeyframe}
-          className={cn(
-            "h-7 w-7 rounded-md flex items-center justify-center",
-            "hover:bg-accent/40"
-          )}
-          title="Add keyframe"
-        >
-          <Diamond className={cn(
-            "h-4 w-4",
-            hasKeyframeHere && "fill-primary text-primary",
-            !hasKeyframeHere && hasAnyKeyframes && "text-primary/70",
-            !hasAnyKeyframes && "text-muted-foreground/50"
-          )} />
-        </button>
+        {/* Keyframe Controls */}
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => handleJumpKeyframe('prev')}
+            disabled={!hasAnyKeyframes}
+            className="h-6 w-4 flex items-center justify-center text-muted-foreground/50 hover:text-foreground disabled:opacity-20"
+            title="Previous Keyframe"
+          >
+            <ChevronLeftIcon className="h-3 w-3" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleAddKeyframe}
+            className={cn(
+              "h-6 w-6 rounded-sm flex items-center justify-center transition-colors",
+              "hover:bg-accent/40"
+            )}
+            title={hasKeyframeHere ? "Remove keyframe" : "Add keyframe"}
+          >
+            <Diamond className={cn(
+              "h-3.5 w-3.5 transform rotate-45",
+              hasKeyframeHere ? "fill-blue-500 text-blue-500" : "text-muted-foreground/40"
+            )} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleJumpKeyframe('next')}
+            disabled={!hasAnyKeyframes}
+            className="h-6 w-4 flex items-center justify-center text-muted-foreground/50 hover:text-foreground disabled:opacity-20"
+            title="Next Keyframe"
+          >
+            <ChevronRightIcon className="h-3 w-3" />
+          </button>
+        </div>
       </div>
     </div>
   );
 };
+
+// ... (Helper component for icons)
+function ChevronLeftIcon(props: any) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M8.84182 3.13514C9.04327 3.32401 9.05348 3.64042 8.86462 3.84188L5.43521 7.49991L8.86462 11.1579C9.05348 11.3594 9.04327 11.6758 8.84182 11.8647C8.64036 12.0535 8.32394 12.0433 8.13508 11.8419L4.38508 7.84188C4.20477 7.64955 4.20477 7.35027 4.38508 7.15794L8.13508 3.15794C8.32394 2.95648 8.64036 2.94628 8.84182 3.13514Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
+    </svg>
+  )
+}
+
+function ChevronRightIcon(props: any) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M6.1584 3.13508C6.35985 2.94621 6.67627 2.95642 6.86514 3.15788L10.6151 7.15788C10.7954 7.3502 10.7954 7.64949 10.6151 7.84182L6.86514 11.8418C6.67627 12.0433 6.35985 12.0535 6.1584 11.8646C5.95694 11.6757 5.94673 11.3593 6.1356 11.1579L9.56496 7.49985L6.1356 3.84182C5.94673 3.64036 5.95694 3.32394 6.1584 3.13508Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
+    </svg>
+  )
+}
 
 
 const LayerRowSortable = ({ rowKey, objectId, level, isOverlay, rowHeight }: { rowKey: string, objectId: string, level: number, isOverlay?: boolean, rowHeight: number }) => {
@@ -516,6 +588,17 @@ const LayerRowUI = ({
           onDoubleClick={() => dispatch({ type: 'START_RENAME_LAYER', payload: { id: objectId } })}
           style={{ paddingLeft: `${8 + level * 16}px`, height: `${rowHeight}px` }}
         >
+
+          {/* Label Color Indicator */}
+          <div className={cn(
+            "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-[70%] rounded-r-sm",
+            objectId.charCodeAt(0) % 5 === 0 ? "bg-red-500" :
+              objectId.charCodeAt(0) % 5 === 1 ? "bg-blue-500" :
+                objectId.charCodeAt(0) % 5 === 2 ? "bg-green-500" :
+                  objectId.charCodeAt(0) % 5 === 3 ? "bg-yellow-500" :
+                    "bg-purple-500"
+          )} style={{ left: 2 }} />
+
           <button {...dndListeners} {...dndAttributes} className="h-6 w-6 flex items-center justify-center text-muted-foreground/50 shrink-0 cursor-grab active:cursor-grabbing focus:outline-none">
             <GripVertical className="h-4 w-4" />
           </button>
