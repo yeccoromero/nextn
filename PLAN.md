@@ -1,13 +1,16 @@
 # 🦅 Squad Project Plan
 
 ## 🗺️ Master Roadmap
-1.  **Framework Upgrade (v0.4.0 Baseline)**
-    *   [x] **Establish Baseline**: Version bump & cleanup.
-    *   [ ] **Next Feature**: [To Be Defined by User]
+1.  **Framework Upgrade (v0.4.0 Stable)**
+    *   [x] **Establish Baseline**: Version bumped to v0.4.0.
+    *   [x] **Graph Editor**: Polished, fixed, and documented.
+2.  **Next Level Improvements (v0.5.0)**
+    *   [x] **Establish Baseline**: Version bumped to v0.5.0.
+    *   [x] **Visual Overhaul**: Tracks, Keyframes, & Interactions polished.
 
 ## 🚀 Current Trajectory
-**Objective**: Clean slate for new feature cycle.
-**Focus**: Definition & Architecture.
+**Objective**: Development Cycle v0.5.0.
+**Focus**: Final Polish & Delivery.
 
 ## 🦅 Squad Workflow Protocol
 Detailed technical workflow is defined in [WORKFLOW.md](./WORKFLOW.md).
@@ -20,47 +23,33 @@ Detailed technical workflow is defined in [WORKFLOW.md](./WORKFLOW.md).
 ## 🟢 Squad Status
 | Role | Agent | Status |
 | :--- | :--- | :--- |
-| **Pro User** | Antigravity | **Waiting** |
-| **Auditor** | Antigravity | **Waiting** |
-| **Engine** | Antigravity | **Waiting** |
-| **Frontend** | Antigravity | **Waiting** |
+| **Pro User** | Antigravity | **Reviewing v0.5.0** |
+| **Auditor** | Antigravity | **Passed** |
+| **Engine** | Antigravity | **Stable** |
+| **Frontend** | Antigravity | **Polished** |
 
 ## 📜 Engineering Log (elog)
 
-### [2026-02-07] Graph Editor Stabilization Cycle
-**Summary**: Resolved critical usability issues in the Graph Editor preventing professional use.
+### [2026-02-12] v0.5.0 Visual Overhaul
+**Summary**: Major UI/UX update implementing "Pro Motion" aesthetic.
 
-#### 1. Value Graph Handles Fix
-- **Issue**: Bezier handles were invisible in "Value" mode.
-- **Root Cause**:
-    1.  Strict interpolation checks ignored implicit/default bezier curves.
-    2.  Variable scope collision (`outHandleScreenY` declared twice) caused render failures.
-- **Fix**:
-    - Implemented dedicated Value Mode render block.
-    - Relaxed curve detection logic.
-    - Renamed variables to avoid collisions.
-- **Result**: Handles are visible and interactive.
+#### 1. Visual Refresh
+- **Track Styling**: Rounded tracks, solid backgrounds (`bg-zinc-800/40`).
+- **Color Logic**: Purple/Peach theme for properties.
+- **Keyframes**: Diamond/Hourglass iconography with semantic coloring.
 
-#### 2. Toolbar Interaction Fix
-- **Issue**: "Speed", "Value", and "Presets" buttons were unclickable.
-- **Root Cause**: Parent `TimelinePanel` captured all pointer events for marquee selection, blocking children.
-- **Fix**: Added `data-nomarquee` to toolbar container; updated parent logic to respect this attribute.
-- **Result**: Buttons function correctly.
+#### 2. Interactions
+- **Sync Drag**: Layer dragging now moves keyframes synchronously.
+- **Marquee**: Safe selection on empty track space.
 
-#### 3. Tangent Modes & Marquee
-- **Implemented**: "Smooth" (Continuous) vs "Broken" tangent modes.
-- **Implemented**: Marquee selection for keyframes.
-- **Implemented**: Numeric inputs for handle influence/value.
+### [2026-02-12] v0.4.0 Release Cycle
+**Summary**: Major stability and UX update for the Animation Engine.
 
-### [2026-02-07] Phase 5: Polish & Fixes
-**Summary**: Fixed critical Clipboard data loss and standardized Graph Editor UI.
+#### 1. Graph Editor UX
+- **Floating Presets**: Decoupled from graph editor, available globally.
+- **Undo/Redo Fix**: Transient updates logic implemented to fix history spam.
+- **Edit Curve**: Contextual access to precise editing.
 
-#### 1. Clipboard Interpolation Fix
-- **Issue**: Copying keyframes lost Ease/Bezier data (pasted as "Linear").
-- **Fix**: Updated `CopiedKeyframe` schema and `PASTE_OBJECTS` reducer to persist `interpolation`, `tangentMode`, and control points. Refactored `upsertKeyframe` helper.
-- **Result**: Keyframe copy/paste now preserves all animation data 1:1.
-
-#### 2. Graph Editor Component Standard
-- **Issue**: Toolbar used raw HTML buttons/inputs, inconsistent with Design System.
-- **Fix**: Refactored `GraphEditorPanel` to use `Button`, `Input`, and `Popover` from `@/components/ui`.
-- **Result**: Consistent "Pro Motion" aesthetic.
+#### 2. Stability
+- **DataCloneError**: Fixed crash in copy/paste operations.
+- **Preset Drag**: Fixed UI sticking issue.
