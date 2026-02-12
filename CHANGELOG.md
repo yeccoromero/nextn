@@ -7,7 +7,7 @@ Este archivo documenta **todos los cambios notables** del proyecto con referenci
 
 ---
 
-## [0.5.0] - WIP | Tag: `v0.5.0`
+## [0.5.0] - 2026-02-12 | Tag: `v0.5.0`
 
 **🔖 Rollback a esta versión:** `git checkout [CURRENT_COMMIT]`
 

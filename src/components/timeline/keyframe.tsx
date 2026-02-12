@@ -101,9 +101,10 @@ export function Keyframe({
 
         {isEase && (
           // Hourglass for Ease (In + Out)
-          // Expanded to 1.5-10.5 range for optical balance
+          // Reverted to Vertical Hourglass (as per user request "no cambiar")
+          // Top Triangle (pointing down) + Bottom Triangle (pointing up)
           <path
-            d="M1.5 1.5 L10.5 1.5 L6 6 L1.5 1.5 Z M1.5 10.5 L10.5 10.5 L6 6 L1.5 10.5 Z"
+            d="M2 2 L10 2 L6 6 L2 2 Z M2 10 L10 10 L6 6 L2 10 Z"
             fill={fillColor}
             stroke={fillColor}
             strokeWidth="1.5"
@@ -112,10 +113,11 @@ export function Keyframe({
         )}
 
         {isEaseIn && (
-          // Ease IN: Pointing INTO the keyframe (Right) -> Triangle pointing right
-          // Expanded to 1.5-10.5 range
+          // Ease IN: "Linear In, Bezier Out" (Bullet Right)
+          // Left side: Diamond (Linear). Right side: Round (Bezier).
+          // Shape: <)
           <path
-            d="M1.5 1.5 L1.5 10.5 L10.5 6 Z"
+            d="M2 6 L6 2 L10 2 C12 2 12 10 10 10 L6 10 Z"
             fill={fillColor}
             stroke={fillColor}
             strokeWidth="1.5"
@@ -124,10 +126,11 @@ export function Keyframe({
         )}
 
         {isEaseOut && (
-          // Ease OUT: Pointing OUT of the keyframe (Left) -> Triangle pointing left
-          // Expanded to 1.5-10.5 range
+          // Ease OUT: "Bezier In, Linear Out" (Bullet Left)
+          // Left side: Round (Bezier). Right side: Diamond (Linear).
+          // Shape: (>
           <path
-            d="M10.5 1.5 L10.5 10.5 L1.5 6 Z"
+            d="M10 6 L6 10 L2 10 C0 10 0 2 2 2 L6 2 Z"
             fill={fillColor}
             stroke={fillColor}
             strokeWidth="1.5"

@@ -93,3 +93,25 @@ Tenemos una máquina del tiempo llamada `CHANGELOG.md`.
 
 Yo me encargaré de devolver todo el código exactamente a como estaba en ese momento. **Nada se pierde para siempre.**
 
+## 7. Investigación y Futuro (R&D) 🔬
+
+A veces hacemos investigación técnica profunda para funciones futuras (como "Anime.js Adapter").
+
+*   **¿Para qué sirve?**: Son "Blueprints" o planos arquitectónicos de cosas que construiremos después. No las borres, son el futuro del proyecto.
+
+## 8. Referencia Visual: Keyframes 💎
+
+Guía rápida de los iconos que verás en la línea de tiempo. Cada forma indica cómo se mueve la animación.
+
+| Icono | Nombre | Significado | Comportamiento |
+| :---: | :--- | :--- | :--- |
+| ♦️ | **Linear** (Rombo) | Velocidad Constante | El cambio es mecánico y uniforme, sin aceleración. |
+| ⏹️ | **Hold** (Cuadrado) | Congelado | El valor se mantiene fijo hasta el siguiente punto. (Corte seco). |
+| ⏳ | **Ease** (Reloj de Arena) | Suavizado (In/Out) | Forma vertical clásica. Acelera y frena suavemente. |
+| <) | **Ease In** (Bala Der) | Llegada Híbrida | Mitad Rombo (Linear In) + Mitad Círculo (Bezier Out). |
+| (> | **Ease Out** (Bala Izq) | Salida Híbrida | Mitad Círculo (Bezier In) + Mitad Rombo (Linear Out). |
+| ● | **Bezier** (Círculo) | Automático | Curva suave calculada automáticamente por el sistema. |
+
+> **Nota Visual**: Las formas híbridas ("Balas") combinan lo mejor de dos mundos:
+> *   **<) Bala Derecha**: Entra recto (Linear), sale curvo (Bezier).
+> *   **(> Bala Izquierda**: Entra curvo (Bezier), sale recto (Linear).
