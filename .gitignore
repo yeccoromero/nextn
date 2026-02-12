@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+BITACORA.md
 
 # debug
 npm-debug.log*

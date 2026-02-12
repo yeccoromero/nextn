@@ -63,7 +63,7 @@ export default function Header() {
         </DropdownMenu>
 
         <span className="font-semibold text-lg">Vectoria</span>
-        <span className="text-sm text-muted-foreground font-mono ml-2">v0.2.0</span>
+        <span className="text-sm text-muted-foreground font-mono ml-2">v0.3.0</span>
         {process.env.NODE_ENV === 'development' && (
           <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 ml-1 border-yellow-500/50 text-yellow-500 bg-yellow-500/10">
             DEV

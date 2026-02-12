@@ -66,7 +66,7 @@ function EditorLayout() {
             className="absolute -top-1 left-0 right-0 h-2 cursor-row-resize z-50 pointer-events-auto"
           />
           <div className="h-full bg-background/95 backdrop-blur border-t pointer-events-auto shadow-2xl">
-            <TimelinePanel />
+            {/* <TimelinePanel /> */}
           </div>
         </div>
 
@@ -88,10 +88,10 @@ export default function ProjectPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = (Array.isArray(params.projectId) ? params.projectId[0] : params.projectId) as string;
-  
+
   // Here you would also fetch the project data and check for permissions
   // For now, we'll just protect the route
-  
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace('/login');

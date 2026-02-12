@@ -7,7 +7,32 @@ Este archivo documenta **todos los cambios notables** del proyecto con referenci
 
 ---
 
+## [0.3.0] - 2026-02-11 | Tag: `v0.3.0`
+
+**🔖 Rollback a esta versión:** `git checkout [CURRENT_COMMIT]`
+
+### ✨ Graph Editor 2.0 (Overhaul)
+| Feature | Descripción | Origen |
+|---------|-------------|--------|
+| **Visual Polish** | Diseño "Bigger & Bolder": Keyframes circulares (10px), handles robustos (2px), curvas gruesas (3px). | `Bitácora 16:52` |
+| **Round Joins** | Suavizado de picos en curvas dramáticas para eliminar artefactos visuales. | `Bitácora 17:07` |
+| **Playhead Physics** | Unificación matemática de dibujo y playhead. Eliminado el "floating effect" en picos agudos. | `Bitácora 16:38` |
+| **Auto-Fit Pro** | Escala vertical adaptativa que maximiza el uso del espacio según el rango de datos. | `Bitácora 15:15` |
+| **Adaptive Zero** | Línea cero dinámica: se mueve al fondo si solo hay valores positivos (estilo After Effects). | `Bitácora 15:35` |
+| **Mixed Mode** | Optimización asimétrica para gráficos con valores positivos y negativos desbalanceados. | `Bitácora 16:10` |
+| **Sticky Scroll** | Sincronización perfecta del scroll horizontal entre Timeline y Graph Editor. | `Bitácora 15:58` |
+
+### 🐛 Correciones
+| Bug | Descripción | Origen |
+|-----|-------------|--------|
+| **Runtime Error** | Fix `Cannot find module` por corrupción de caché Next.js. | `Bitácora 14:47` |
+| **Drag Creation** | Fix desaparición de objetos al crearlos arrastrando (validación de tamaño). | `Bitácora 14:47` |
+| **Marquee Visual** | Fix cuadro de selección invisible en Graph Editor (ahora usa React Portal). | `Bitácora [Hoy]` |
+
+---
+
 ## [0.2.0] - 2026-02-07 | Tag: `v0.2.0`
+
 
 **🔖 Rollback a esta versión:** `git checkout 6bdda21`
 

@@ -1616,17 +1616,22 @@ export default function Canvas() {
                     }
                     dispatch({ type: 'UPDATE_OBJECTS', payload: { ids: [id], updates: defaultSize }, transient: true });
                 } else if (obj && interactionState.isDrag) {
-                    const isTooSmall = ('width' in obj && Math.abs(obj.width) < 5) || ('rx' in obj && Math.abs(obj.rx) < 2.5) || ('outerRadius' in obj && Math.abs(obj.outerRadius) < 5);
-                    if (isTooSmall) {
-                        dispatch({ type: 'DELETE_SELECTED' })
+                    const currentObj = objects[id];
+                    if (currentObj) {
+                        const isTooSmall = ('width' in currentObj && Math.abs(currentObj.width) < 5) ||
+                            ('rx' in currentObj && Math.abs(currentObj.rx) < 2.5) ||
+                            ('outerRadius' in currentObj && Math.abs(currentObj.outerRadius) < 5);
+                        if (isTooSmall) {
+                            dispatch({ type: 'DELETE_SELECTED' })
+                        }
                     }
                 }
             }
             if (id) {
                 dispatch({ type: 'NORMALIZE_OBJECTS', payload: { ids: [id] }, transient: true });
             }
-            dispatch({ type: 'SET_TOOL', payload: 'select' });
             dispatch({ type: 'COMMIT_DRAG' });
+            dispatch({ type: 'SET_TOOL', payload: 'select' });
 
         } else if (interactionState.type === 'node-marquee' && marqueeRect) {
             const { pan, zoom } = canvas;

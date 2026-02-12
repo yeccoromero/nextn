@@ -796,31 +796,15 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
     case 'SELECT_KEYFRAMES_IN_RECT': {
       const { keys, additive } = action.payload;
       const pickedKeyIds = keys.map(k => k.keyframeId);
-      // Get unique object IDs from the selected keyframes
-      const pickedObjectIds = Array.from(new Set(keys.map(k => k.objectId)));
 
       const prevKeyIds = draft.timeline.selection.keyIds ?? [];
-      // Get currently selected objects
-      const prevObjectIds = draft.selectedObjectIds ?? [];
 
       if (additive) {
-        // MERGE: Add new keys to existing selection
         draft.timeline.selection.keyIds = Array.from(new Set([...prevKeyIds, ...pickedKeyIds]));
-        // MERGE: Add new objects to existing selection
-        draft.selectedObjectIds = Array.from(new Set([...prevObjectIds, ...pickedObjectIds]));
       } else {
-        // REPLACE: Set keys to new selection
         draft.timeline.selection.keyIds = pickedKeyIds;
-
-        // REPLACE: Set objects to new selection, but handle empty case wisely
-        if (keys.length > 0) {
-          draft.selectedObjectIds = pickedObjectIds;
-        }
-        // Do NOT clear selectedObjectIds if keys are empty. 
-        // We want to keep the current object view context even if keyframes are deselected.
       }
 
-      // Update primary selection pointer (last selected item context)
       if (keys.length > 0) {
         const firstKey = keys[0];
         draft.timeline.selection.objectId = firstKey.objectId;
@@ -829,12 +813,6 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
         delete draft.timeline.selection.objectId;
         delete draft.timeline.selection.propertyId;
       }
-
-      // Update UI focus to reflect new selection
-      if (draft.selectedObjectIds.length > 0) {
-        draft.ui.focus = { type: 'selection', payload: { objectIds: draft.selectedObjectIds } };
-      }
-
       return;
     }
     case 'DELETE_SELECTED_KEYFRAMES': {

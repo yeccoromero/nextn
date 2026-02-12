@@ -321,6 +321,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
             const y = Math.min(e.clientY, marqueeStartRef.current.y);
             const w = Math.abs(e.clientX - marqueeStartRef.current.x);
             const h = Math.abs(e.clientY - marqueeStartRef.current.y);
+
             setSelectionRect(new DOMRect(x, y, w, h));
             return;
         }
@@ -834,6 +835,10 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
             (e.target as HTMLElement).setPointerCapture(e.pointerId);
             return;
         } else {
+            // STOP PROPAGATION to prevent TimelinePanel from handling this as a Dope Sheet click
+            // which causes deselection of the current object.
+            e.stopPropagation();
+
             setSelectedHandle(null);
             // Start Marquee Selection
             marqueeStartRef.current = { x: e.clientX, y: e.clientY };
@@ -883,6 +888,27 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     const canvasX = x - clientRect.left;
                     const canvasY = y - clientRect.top;
 
+                    // Helper for Line-Rect Intersection
+                    const lineIntersectsRect = (x1: number, y1: number, x2: number, y2: number, rx: number, ry: number, rw: number, rh: number) => {
+                        const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
+                        const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+                        if (maxX < rx || minX > rx + rw || maxY < ry || minY > ry + rh) return false;
+                        if ((x1 >= rx && x1 <= rx + rw && y1 >= ry && y1 <= ry + rh) || (x2 >= rx && x2 <= rx + rw && y2 >= ry && y2 <= ry + rh)) return true;
+                        const checkX = (xVal: number) => {
+                            if (x2 === x1) return false;
+                            const t = (xVal - x1) / (x2 - x1);
+                            if (t >= 0 && t <= 1) { const y = y1 + t * (y2 - y1); return y >= ry && y <= ry + rh; }
+                            return false;
+                        };
+                        const checkY = (yVal: number) => {
+                            if (y2 === y1) return false;
+                            const t = (yVal - y1) / (y2 - y1);
+                            if (t >= 0 && t <= 1) { const x = x1 + t * (x2 - x1); return x >= rx && x <= rx + rw; }
+                            return false;
+                        };
+                        return checkX(rx) || checkX(rx + rw) || checkY(ry) || checkY(ry + rh);
+                    };
+
                     // Use Set to avoid duplicates (handlesRef may contain multiple entries per KF)
                     const uniqueKeyIds = new Set<string>();
                     const selectedKeys: any[] = [];
@@ -892,11 +918,31 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     // This avoids coordinate mismatches from recalculation.
                     for (const hData of handlesRef.current) {
                         // Check intersection with Keyframe Marker (kfX, kfY)
-                        // Allow "touching" the keyframe (radius ~3-4px)
-                        const HIT_TOLERANCE = 4;
-                        if (hData.kfX >= canvasX - HIT_TOLERANCE && hData.kfX <= canvasX + w + HIT_TOLERANCE &&
-                            hData.kfY >= canvasY - HIT_TOLERANCE && hData.kfY <= canvasY + h + HIT_TOLERANCE) {
+                        // Increased tolerance to 6px (visual radius is ~3px) for easier selection
+                        const KF_HIT_TOLERANCE = 6;
+                        let isHit = false;
 
+                        // 1. Check Keyframe Anchor
+                        if (hData.kfX >= canvasX - KF_HIT_TOLERANCE && hData.kfX <= canvasX + w + KF_HIT_TOLERANCE &&
+                            hData.kfY >= canvasY - KF_HIT_TOLERANCE && hData.kfY <= canvasY + h + KF_HIT_TOLERANCE) {
+                            isHit = true;
+                        }
+
+                        // 2. Check Line Intersection (Anchor <-> Handle Tip)
+                        if (!isHit) {
+                            if (hData.outHandle) {
+                                if (lineIntersectsRect(hData.kfX, hData.kfY, hData.outHandle.visualScreenX, hData.outHandle.visualScreenY, canvasX, canvasY, w, h)) {
+                                    isHit = true;
+                                }
+                            }
+                            if (!isHit && hData.inHandle) {
+                                if (lineIntersectsRect(hData.kfX, hData.kfY, hData.inHandle.visualScreenX, hData.inHandle.visualScreenY, canvasX, canvasY, w, h)) {
+                                    isHit = true;
+                                }
+                            }
+                        }
+
+                        if (isHit) {
                             if (!uniqueKeyIds.has(hData.kfId)) {
                                 uniqueKeyIds.add(hData.kfId);
                                 selectedKeys.push({
@@ -1005,15 +1051,17 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
         let globalStartMs = Infinity, globalEndMs = -Infinity;
 
-        // First pass: calculate Y ranges
+        // First pass: calculate Y ranges and Global Max/Min Velocity
+        let globalMaxVelocity = 10;
+        let globalMinVelocity = 0;
+        const PADDING_TOP = 20;
+
         selectedTracks.forEach(({ track }) => {
             if (track.keyframes.length < 2) return;
             const sortedKeyframes = [...track.keyframes].sort((a, b) => a.timeMs - b.timeMs);
 
             globalStartMs = Math.min(globalStartMs, sortedKeyframes[0].timeMs);
             globalEndMs = Math.max(globalEndMs, sortedKeyframes[sortedKeyframes.length - 1].timeMs);
-
-            let trackMaxVelocity = 50;
 
             for (let i = 0; i < sortedKeyframes.length - 1; i++) {
                 const kf1 = sortedKeyframes[i];
@@ -1029,39 +1077,145 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 globalMinVal = Math.min(globalMinVal, val1, val2);
                 globalMaxVal = Math.max(globalMaxVal, val1, val2);
 
-                // Calculate max velocity for speed graph per track
+                // Calculate signed velocity for speed graph
                 let cp1 = { x: 0.33, y: 0 };
                 let cp2 = { x: 0.67, y: 1 };
                 if (kf1.interpolation === 'bezier' && kf1.controlPoints) {
                     cp1 = { x: kf1.controlPoints.x1, y: kf1.controlPoints.y1 };
                     cp2 = { x: kf1.controlPoints.x2, y: kf1.controlPoints.y2 };
                 } else if (kf1.interpolation === 'ease') {
-                    cp1 = { x: 0.42, y: 0 }; cp2 = { x: 0.58, y: 1 }; // Ease default
+                    cp1 = { x: 0.42, y: 0 }; cp2 = { x: 0.58, y: 1 };
                 }
 
                 if (kf1.interpolation === 'linear') {
-                    const vel = Math.abs(deltaVal / timeSec);
-                    if (vel > trackMaxVelocity) trackMaxVelocity = vel;
+                    const vel = deltaVal / timeSec; // Signed
+                    globalMaxVelocity = Math.max(globalMaxVelocity, vel);
+                    globalMinVelocity = Math.min(globalMinVelocity, vel);
                 } else if (kf1.interpolation !== 'hold') {
                     // Sample bezier for max velocity
                     for (let t = 0; t <= 1; t += 0.1) {
-                        const dx = cubicBezierDerivativeOneAxis(t, cp1.x, cp2.x);
-                        const dy = cubicBezierDerivativeOneAxis(t, cp1.y, cp2.y);
-                        const normVel = dx === 0 ? 0 : dy / dx;
-
-                        const realVel = normVel * Math.abs(deltaVal / timeSec);
-                        if (realVel > trackMaxVelocity) trackMaxVelocity = realVel;
+                        const vel = getSafeVelocity(t, cp1.x, cp2.x, cp1.y, cp2.y);
+                        const realVel = vel * (deltaVal / timeSec); // Signed
+                        globalMaxVelocity = Math.max(globalMaxVelocity, realVel);
+                        globalMinVelocity = Math.min(globalMinVelocity, realVel);
                     }
                 }
             }
+        });
 
-            // Calculate Scale for this track (Speed Mode)
+        // Helper for consistent physics
+        function getSafeVelocity(t: number, x1: number, x2: number, y1: number, y2: number): number {
+            const dx = cubicBezierDerivativeOneAxis(t, x1, x2);
+            const dy = cubicBezierDerivativeOneAxis(t, y1, y2);
+            // Unified Clamp: Allows high velocity but prevents infinity.
+            // Matches both drawing and playhead to ensure they overlap.
+            if (Math.abs(dx) < 0.0001) return dy / (dx >= 0 ? 0.0001 : -0.0001);
+            return dy / dx;
+        }
+
+        // --- Calculate "Nice Scale" for Speed Mode Globally ---
+        let speedPxPerUnit = 1;
+        let speedMidY = height / 2;
+        let niceSpeedMax = 100;
+        let niceSpeedMin = -100; // For grid drawing
+        let niceSpeedStep = 10;
+
+        if (graphMode === 'speed') {
+            const availableHeight = height - (PADDING_TOP * 2);
+
+            // ADAPTIVE ZERO: Check if we have negative velocities
+            // Epsilon -0.5 to ignore tiny noise, but if significantly negative, switch to centered
+            const hasNegative = globalMinVelocity < -0.5;
+
+            let maxAbs = 100;
+
+            if (!hasNegative) {
+                // --- POSITIVE ONLY MODE (Bottom Baseline) ---
+                maxAbs = Math.max(globalMaxVelocity * 1.1, 10);
+
+                // Nice Number Logic (0 to Max)
+                const targetSteps = 5;
+                const rawStep = maxAbs / targetSteps;
+                const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+                const res = rawStep / mag;
+                let step = mag;
+                if (res > 5) step = 10 * mag;
+                else if (res > 2) step = 5 * mag;
+                else if (res > 1) step = 2 * mag;
+
+                niceSpeedStep = step;
+                niceSpeedMax = Math.ceil(maxAbs / step) * step;
+                niceSpeedMin = 0;
+
+                speedPxPerUnit = availableHeight / niceSpeedMax; // Use full height
+                speedMidY = height - PADDING_TOP; // 0 is at bottom
+            } else {
+                // --- MIXED / NEGATIVE MODE (Asymmetric) ---
+                // Fit EXACT range (Min to Max) with some padding, keep 0 aligned to grid.
+
+                // 1. Determine "step" size based on largest magnitude
+                const absMax = Math.max(Math.abs(globalMaxVelocity), Math.abs(globalMinVelocity));
+                const rangeMagnitude = absMax * 1.1;
+
+                const targetSteps = 5;
+                const rawStep = rangeMagnitude / targetSteps;
+                const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+                const res = rawStep / mag;
+                let step = mag;
+                if (res > 5) step = 10 * mag;
+                else if (res > 2) step = 5 * mag;
+                else if (res > 1) step = 2 * mag;
+
+                niceSpeedStep = step;
+
+                // 2. Snap bounds to this step
+                niceSpeedMax = Math.ceil(Math.max(globalMaxVelocity, 0) / step) * step;
+                niceSpeedMin = Math.floor(Math.min(globalMinVelocity, 0) / step) * step;
+
+                // Ensure at least one step of range
+                if (niceSpeedMax === niceSpeedMin) {
+                    niceSpeedMax += step;
+                    niceSpeedMin -= step;
+                }
+
+                // If purely negative, ensure max is 0
+                if (globalMaxVelocity <= 0) niceSpeedMax = 0;
+
+                // 3. Calculate Scale
+                const totalRange = niceSpeedMax - niceSpeedMin;
+                speedPxPerUnit = availableHeight / totalRange;
+
+                // 4. Calculate Zero Line (midY)
+                // midY = PADDING_TOP + (niceSpeedMax * pxPerUnit)
+                speedMidY = PADDING_TOP + (niceSpeedMax * speedPxPerUnit);
+            }
+        }
+
+        // --- Calculate "Nice Scale" for Value Mode Globally ---
+        // We override globalMinVal/MaxVal to be the Nice Bounds
+        if (graphMode === 'value') {
+            if (globalMaxVal === -Infinity) { globalMinVal = 0; globalMaxVal = 100; }
+            let range = globalMaxVal - globalMinVal;
+            if (range === 0) { globalMinVal -= 50; globalMaxVal += 50; range = 100; }
+
+            const targetSteps = 6;
+            const rawStep = range / targetSteps;
+            const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+            const res = rawStep / mag;
+            let step = mag;
+            if (res > 5) step = 10 * mag;
+            else if (res > 2) step = 5 * mag;
+            else if (res > 1) step = 2 * mag;
+
+            // Snap to nice bounds
+            globalMinVal = Math.floor(globalMinVal / step) * step;
+            globalMaxVal = Math.ceil(globalMaxVal / step) * step;
+        }
+
+        // Apply Global Scale to TrackScales
+        selectedTracks.forEach(({ track }) => {
             if (graphMode === 'speed') {
-                const range = Math.max(trackMaxVelocity * 1.2, 50); // 20% padding
-                const baselineRatio = 0.70;
-                const midY = PADDING + (height - PADDING * 2) * baselineRatio;
-                const pxPerUnit = (height - PADDING * 2) * baselineRatio / range;
-                trackScales.set(track.id, { pxPerUnit, midY });
+                trackScales.set(track.id, { pxPerUnit: speedPxPerUnit, midY: speedMidY });
             }
         });
 
@@ -1148,13 +1302,11 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                         segmentPoints.push({ x: endX, y: constantVel });
                         startY = endY = constantVel;
                     } else {
-                        const steps = Math.max(50, Math.min(200, Math.floor((endX - startX) / 2)));
+                        // Increase resolution for steep curves
+                        const steps = Math.max(100, Math.min(1000, Math.floor((endX - startX) * 2)));
                         for (let s = 0; s <= steps; s++) {
                             const t = s / steps;
-                            const dx = cubicBezierDerivativeOneAxis(t, cp1.x, cp2.x);
-                            const dy = cubicBezierDerivativeOneAxis(t, cp1.y, cp2.y);
-                            const normVel = dx === 0 ? 0 : dy / dx;
-
+                            const normVel = getSafeVelocity(t, cp1.x, cp2.x, cp1.y, cp2.y);
                             const realVel = normVel * (deltaVal / timeSec);
 
                             const timeProgress = cubicBezierOneAxis(t, cp1.x, cp2.x);
@@ -1228,7 +1380,6 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     // Show handles for anything that is not linear or hold
                     // This includes explicit 'bezier', 'ease', and implicit undefined (which defaults to S-curve)
                     const hasBezier = kfStart.interpolation !== 'linear' && kfStart.interpolation !== 'hold';
-                    if (!hasBezier) return;
 
                     const segmentWidthPx = endX - startX;
                     const segmentHeightPx = height * 0.4; // Y scale for handles
@@ -1240,18 +1391,37 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     const kfYStart = midY - (startY * pxPerUnit);
                     const kfYEnd = midY - (endY * pxPerUnit);
 
-                    // OUT handle: extends from start keyframe toward the curve peak
-                    const outHandleScreenX = startX + cp1.x * segmentWidthPx;
-                    const outHandleScreenY = kfYStart - (cp1.y * segmentHeightPx);
-                    // Clamp visual Y to keep it on screen (Ghost Handle)
-                    const visualOutY = Math.max(10, Math.min(height - 10, outHandleScreenY));
+                    let outHandle = null;
+                    let inHandle = null;
 
-                    // IN handle: extends from end keyframe back toward the curve peak
-                    // Uses (1 - cp2.x) for X position and (1 - cp2.y) for Y offset (Bezier convention)
-                    const inHandleScreenX = endX - (1 - cp2.x) * segmentWidthPx;
-                    const inHandleScreenY = kfYEnd + ((1 - cp2.y) * segmentHeightPx);
-                    // Clamp visual Y
-                    const visualInY = Math.max(10, Math.min(height - 10, inHandleScreenY));
+                    if (hasBezier) {
+                        // OUT handle: extends from start keyframe toward the curve peak
+                        const outHandleScreenX = startX + cp1.x * segmentWidthPx;
+                        const outHandleScreenY = kfYStart - (cp1.y * segmentHeightPx);
+                        // Clamp visual Y to keep it on screen (Ghost Handle)
+                        const visualOutY = Math.max(10, Math.min(height - 10, outHandleScreenY));
+
+                        // IN handle: extends from end keyframe back toward the curve peak
+                        // Uses (1 - cp2.x) for X position and (1 - cp2.y) for Y offset (Bezier convention)
+                        const inHandleScreenX = endX - (1 - cp2.x) * segmentWidthPx;
+                        const inHandleScreenY = kfYEnd + ((1 - cp2.y) * segmentHeightPx);
+                        // Clamp visual Y
+                        const visualInY = Math.max(10, Math.min(height - 10, inHandleScreenY));
+
+                        outHandle = {
+                            screenX: outHandleScreenX,
+                            screenY: outHandleScreenY,
+                            visualScreenX: outHandleScreenX,
+                            visualScreenY: visualOutY
+                        };
+
+                        inHandle = {
+                            screenX: inHandleScreenX,
+                            screenY: inHandleScreenY,
+                            visualScreenX: inHandleScreenX,
+                            visualScreenY: visualInY
+                        };
+                    }
 
                     newHandles.push({
                         kfId: kfStart.id,
@@ -1260,12 +1430,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                         kfTimeMs: kfStart.timeMs,
                         kfX: startX,
                         kfY: kfYStart,
-                        outHandle: {
-                            screenX: outHandleScreenX,
-                            screenY: outHandleScreenY,
-                            visualScreenX: outHandleScreenX,
-                            visualScreenY: visualOutY
-                        },
+                        outHandle: outHandle,
                         inHandle: null,
                         originalCp1: { ...cp1 },
                         originalCp2: { ...cp2 },
@@ -1282,12 +1447,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                         kfX: endX,
                         kfY: kfYEnd,
                         outHandle: null,
-                        inHandle: {
-                            screenX: inHandleScreenX,
-                            screenY: inHandleScreenY,
-                            visualScreenX: inHandleScreenX,
-                            visualScreenY: visualInY
-                        },
+                        inHandle: inHandle,
                         originalCp1: { ...cp1 },
                         originalCp2: { ...cp2 },
                         segmentWidthPx,
@@ -1311,25 +1471,42 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     // Show handles for anything that is not linear or hold.
                     // This includes explicit 'bezier', 'ease', and implicit undefined (which defaults to S-curve).
                     const hasBezier = kfStart.interpolation !== 'linear' && kfStart.interpolation !== 'hold';
-                    if (!hasBezier) return;
 
                     const segmentWidthPx = endX - startX;
                     const deltaVal = val2 - val1;
 
-                    // Calculate P1 (Out Handle)
-                    const p1Time = startMs + cp1.x * durationMs;
-                    const p1Val = val1 + cp1.y * deltaVal;
+                    let outHandle = null;
+                    let inHandle = null;
 
-                    const valOutX = timeToScreenX(p1Time, width);
-                    const valOutY = PADDING + ((vMax - p1Val) / (vMax - vMin)) * contentHeight;
+                    if (hasBezier) {
+                        // Calculate P1 (Out Handle)
+                        const p1Time = startMs + cp1.x * durationMs;
+                        const p1Val = val1 + cp1.y * deltaVal;
 
-                    // Calculate P2 (In Handle)
-                    const p2Time = startMs + cp2.x * durationMs;
-                    const p2Val = val1 + cp2.y * deltaVal;
+                        const valOutX = timeToScreenX(p1Time, width);
+                        const valOutY = PADDING + ((vMax - p1Val) / (vMax - vMin)) * contentHeight;
 
-                    const valInX = timeToScreenX(p2Time, width);
-                    const valInY = PADDING + ((vMax - p2Val) / (vMax - vMin)) * contentHeight;
+                        // Calculate P2 (In Handle)
+                        const p2Time = startMs + cp2.x * durationMs;
+                        const p2Val = val1 + cp2.y * deltaVal;
 
+                        const valInX = timeToScreenX(p2Time, width);
+                        const valInY = PADDING + ((vMax - p2Val) / (vMax - vMin)) * contentHeight;
+
+                        outHandle = {
+                            screenX: valOutX,
+                            screenY: valOutY,
+                            visualScreenX: valOutX,
+                            visualScreenY: valOutY
+                        };
+
+                        inHandle = {
+                            screenX: valInX,
+                            screenY: valInY,
+                            visualScreenX: valInX,
+                            visualScreenY: valInY
+                        };
+                    }
 
                     newHandles.push({
                         kfId: kfStart.id,
@@ -1338,12 +1515,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                         kfTimeMs: kfStart.timeMs,
                         kfX: startX,
                         kfY: PADDING + ((vMax - val1) / (vMax - vMin)) * contentHeight,
-                        outHandle: {
-                            screenX: valOutX,
-                            screenY: valOutY,
-                            visualScreenX: valOutX,
-                            visualScreenY: valOutY
-                        },
+                        outHandle: outHandle,
                         inHandle: null,
                         originalCp1: { ...cp1 },
                         originalCp2: { ...cp2 },
@@ -1362,12 +1534,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                         kfX: endX,
                         kfY: PADDING + ((vMax - val2) / (vMax - vMin)) * contentHeight,
                         outHandle: null,
-                        inHandle: {
-                            screenX: valInX,
-                            screenY: valInY,
-                            visualScreenX: valInX,
-                            visualScreenY: valInY
-                        },
+                        inHandle: inHandle,
                         originalCp1: { ...cp1 },
                         originalCp2: { ...cp2 },
                         segmentWidthPx,
@@ -1394,79 +1561,136 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
         ctx.lineWidth = 1;
         ctx.beginPath();
 
-        // Vertical grid (time) - affected by zoom
-        const baseStepMs = 1000; // 1 second intervals
-        const effectiveMsPerPx = msPerPx / zoomX;
-        const stepPx = baseStepMs / effectiveMsPerPx;
+        // --- Adaptive Time Grid (X-Axis) ---
+        // Frames per second (assume 30 usually, or derive from project settings if available)
+        const fps = 30;
+        const frameMs = 1000 / fps;
+
+        // Determine step based on zoom
+        // We want grid lines to be at least ~50px apart visually
+        const minGridSpacingPx = 50;
+        const msPerPixelEffective = msPerPx / zoomX;
+        const minStepMs = minGridSpacingPx * msPerPixelEffective;
+
+        // Define logical steps in milliseconds
+        const steps = [
+            frameMs,       // 1 frame
+            frameMs * 2,   // 2 frames
+            frameMs * 5,   // 5 frames
+            frameMs * 10,  // 10 frames
+            1000,          // 1 second
+            2000,          // 2 seconds
+            5000,          // 5 seconds
+            10000,         // 10 seconds
+            30000,         // 30 seconds
+            60000          // 1 minute
+        ];
+
+        let timeStepMs = steps.find(s => s >= minStepMs) || 60000;
 
         // Find first visible grid line
-        const visibleStartMs = originMs - (panOffset * effectiveMsPerPx);
-        const firstGridMs = Math.floor(visibleStartMs / baseStepMs) * baseStepMs;
+        const visibleStartMs = originMs - (panOffset * msPerPixelEffective);
+        const firstGridMs = Math.floor(visibleStartMs / timeStepMs) * timeStepMs;
 
-        for (let ms = firstGridMs; ; ms += baseStepMs) {
+        for (let ms = firstGridMs; ; ms += timeStepMs) {
             const x = timeToScreenX(ms, width);
             if (x > width) break;
-            if (x >= 0) {
+            if (x >= -50) { // Allow drawing slightly offscreen left for smoothness
                 ctx.moveTo(x, 0);
                 ctx.lineTo(x, height);
+
+                // Draw Label
+                if (x >= 0) {
+                    ctx.fillStyle = '#666';
+                    ctx.font = '10px monospace';
+                    let label = '';
+                    if (timeStepMs < 1000) {
+                        // Frames
+                        const frame = Math.round(ms / frameMs);
+                        label = `${frame}f`;
+                    } else {
+                        // Seconds
+                        label = `${(ms / 1000).toFixed(0)}s`;
+                    }
+                    ctx.fillText(label, x + 4, height - 10);
+                }
             }
         }
+        ctx.stroke(); // Draw X-Grid lines
 
-        // Horizontal grid (value/velocity) - NOT affected by zoom
-        const { pxPerUnit, midY } = scaleRef.current;
+        // --- Adaptive Value/Speed Grid (Y-Axis) ---
+        // Use constants calculated in First Pass
 
         if (graphMode === 'speed') {
-            // Derive grid range from scale
-            // midY is baseline. Top is PADDING.
-            const gridMaxVelocity = (midY - PADDING) / (pxPerUnit || 1);
-            const vStep = gridMaxVelocity / 2;
+            const vStep = niceSpeedStep;
+            const vMax = niceSpeedMax;
+            const vMin = niceSpeedMin;
 
-            for (let v = -gridMaxVelocity; v <= gridMaxVelocity; v += vStep) {
-                const y = midY - (v * pxPerUnit);
-                if (y >= 0 && y <= height) {
+            // Draw Positive
+            for (let v = 0; v <= vMax; v += vStep) {
+                const y = speedMidY - (v * speedPxPerUnit);
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                // Label
+                ctx.fillStyle = '#666';
+                ctx.fillText(`${v}`, 5, y - 2);
+            }
+
+            // Draw Negative (only if needed)
+            if (vMin < 0) {
+                for (let v = -vStep; v >= vMin; v -= vStep) {
+                    const y = speedMidY - (v * speedPxPerUnit);
                     ctx.moveTo(0, y);
                     ctx.lineTo(width, y);
+                    // Label
+                    ctx.fillStyle = '#666';
+                    ctx.fillText(`${v}`, 5, y - 2);
                 }
             }
             ctx.stroke();
-
-            // Labels
-            ctx.fillStyle = '#555';
-            ctx.font = '10px monospace';
-            for (let v = -gridMaxVelocity; v <= gridMaxVelocity; v += vStep) {
-                const y = midY - (v * pxPerUnit);
-                if (y >= 10 && y <= height - 5) {
-                    ctx.fillText(`${v.toFixed(0)}`, 5, y - 2);
-                }
-            }
 
             // Zero line (stronger)
             ctx.strokeStyle = '#666';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.lineTo(width, midY);
+            ctx.moveTo(0, speedMidY);
+            ctx.lineTo(width, speedMidY);
             ctx.stroke();
-        } else {
-            const valRange = globalMaxVal - globalMinVal;
-            const padding = valRange * 0.15 || 10;
-            const yMin = globalMinVal - padding;
-            const yMax = globalMaxVal + padding;
 
-            const vStep = valRange / 4;
-            for (let v = yMin; v <= yMax; v += vStep) {
-                const y = PADDING + ((yMax - v) / (yMax - yMin)) * (height - PADDING * 2);
+        } else {
+            // Value Mode Grid
+            // globalMinVal & globalMaxVal are already snapped to "Nice Numbers"
+            const valRange = globalMaxVal - globalMinVal;
+            const availableHeight = height - (PADDING_TOP * 2);
+
+            // Re-derive the step size used for snapping (or approx) for grid lines
+            const targetSteps = 6;
+            const rawStep = valRange / targetSteps;
+            const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+            const res = rawStep / mag;
+            let step = mag;
+            if (res > 5) step = 10 * mag;
+            else if (res > 2) step = 5 * mag;
+            else if (res > 1) step = 2 * mag;
+
+            const valueToScreen = (v: number) => PADDING_TOP + ((globalMaxVal - v) / (globalMaxVal - globalMinVal)) * availableHeight;
+
+            // Draw Grid
+            ctx.beginPath();
+            ctx.strokeStyle = '#2a2a2a';
+            // Ensure we cover the full range including min/max
+            for (let v = globalMinVal; v <= globalMaxVal + 0.0001; v += step) {
+                const y = valueToScreen(v);
                 ctx.moveTo(0, y);
                 ctx.lineTo(width, y);
+
+                // Label
+                ctx.fillStyle = '#666';
+                ctx.fillText(`${v.toFixed(1)}`, 5, y - 2);
             }
             ctx.stroke();
 
-            ctx.fillStyle = '#555';
-            ctx.font = '10px monospace';
-            for (let v = yMin; v <= yMax; v += vStep) {
-                const y = PADDING + ((yMax - v) / (yMax - yMin)) * (height - PADDING * 2);
-                ctx.fillText(`${v.toFixed(0)}`, 5, y - 2);
-            }
+            scaleRef.current = { pxPerUnit: availableHeight / valRange, midY: 0 };
         }
 
         if (selectedTracks.length === 0) {
@@ -1481,14 +1705,41 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
             ctx.strokeStyle = trackData.color;
             ctx.lineWidth = 2;
 
-            const { pxPerUnit, midY } = trackData.scale;
+            // Sync Scale with Grid
+            let currentScale = trackData.scale;
+            if (graphMode === 'speed') {
+                currentScale = scaleRef.current; // Use Global Scale
+            }
 
-            // Re-calc bounds for Value mode (since local vars are gone)
-            const valRange = globalMaxVal - globalMinVal;
-            const padding = valRange * 0.15 || 10;
-            const vMin = globalMinVal - padding;
-            const vMax = globalMaxVal + padding;
-            const PADDING = 20;
+            const { pxPerUnit, midY } = currentScale;
+
+            // Re-calc bounds for Value mode
+            // We need to match the Grid's "Nice Scale" logic exactly
+            let vMin = 0;
+            let vMax = 100;
+            const PADDING_TOP = 20;
+            const contentHeight = height - (PADDING_TOP * 2);
+
+            if (graphMode === 'value') {
+                // Re-calculate Nice Bounds from Globals
+                let yMin = globalMinVal;
+                let yMax = globalMaxVal;
+                let range = yMax - yMin;
+                if (range === 0) { yMin -= 50; yMax += 50; range = 100; }
+
+                const idealSteps = 6;
+                const rawStep = range / idealSteps;
+                const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+                const residual = rawStep / mag;
+                let niceStep;
+                if (residual > 5) niceStep = 10 * mag;
+                else if (residual > 2) niceStep = 5 * mag;
+                else if (residual > 1) niceStep = 2 * mag;
+                else niceStep = mag;
+
+                vMin = Math.floor(yMin / niceStep) * niceStep;
+                vMax = Math.ceil(yMax / niceStep) * niceStep;
+            }
 
             trackData.segments.forEach((seg, i) => {
                 ctx.beginPath();
@@ -1498,7 +1749,9 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     if (graphMode === 'speed') {
                         y = midY - (pt.y * pxPerUnit);
                     } else {
-                        y = PADDING + ((vMax - pt.y) / (vMax - vMin)) * (height - PADDING * 2);
+                        // Value Mode Transform matching Grid
+                        // y = PADDING_TOP + ((niceMax - v) / (niceMax - niceMin)) * availableHeight
+                        y = PADDING_TOP + ((vMax - pt.y) / (vMax - vMin)) * contentHeight;
                     }
                     // Clamp to visible area
                     y = Math.max(-10, Math.min(height + 10, y));
@@ -1510,7 +1763,17 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                         ctx.lineTo(pt.x, y);
                     }
                 });
+
+                // VISUAL POLISH: Thicker Curves (3px) + Round Joins for sharp peaks
+                ctx.strokeStyle = trackData.color;
+                ctx.lineWidth = 3;
+                ctx.lineJoin = 'round'; // Fixes sharp spikes Artifacts
+                ctx.lineCap = 'round';  // Smooth ends
                 ctx.stroke();
+
+                // Reset defaults to avoid affecting other drawings
+                ctx.lineJoin = 'miter';
+                ctx.lineCap = 'butt';
 
                 // Velocity step
                 if (graphMode === 'speed' && i > 0) {
@@ -1563,13 +1826,38 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
             // Ball on each curve
             calculatedSegments.forEach(trackData => {
-                const { pxPerUnit, midY } = trackData.scale;
+                // Sync Scale logic
+                let currentScale = trackData.scale;
+                if (graphMode === 'speed') {
+                    currentScale = scaleRef.current;
+                }
+                const { pxPerUnit, midY } = currentScale;
 
-                const valRange = globalMaxVal - globalMinVal;
-                const padding = valRange * 0.15 || 10;
-                const vMin = globalMinVal - padding;
-                const vMax = globalMaxVal + padding;
-                const PADDING = 20;
+                // Re-calc bounds for Value mode
+                let vMin = 0;
+                let vMax = 100;
+                const PADDING_TOP = 20;
+                const contentHeight = height - (PADDING_TOP * 2);
+
+                if (graphMode === 'value') {
+                    let yMin = globalMinVal;
+                    let yMax = globalMaxVal;
+                    let range = yMax - yMin;
+                    if (range === 0) { yMin -= 50; yMax += 50; range = 100; }
+
+                    const idealSteps = 6;
+                    const rawStep = range / idealSteps;
+                    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+                    const residual = rawStep / mag;
+                    let niceStep;
+                    if (residual > 5) niceStep = 10 * mag;
+                    else if (residual > 2) niceStep = 5 * mag;
+                    else if (residual > 1) niceStep = 2 * mag;
+                    else niceStep = mag;
+
+                    vMin = Math.floor(yMin / niceStep) * niceStep;
+                    vMax = Math.ceil(yMax / niceStep) * niceStep;
+                }
 
                 for (const seg of trackData.segments) {
                     if (currentMs >= seg.startMs && currentMs <= seg.endMs) {
@@ -1584,7 +1872,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                             if (graphMode === 'speed') {
                                 ballY = midY;
                             } else {
-                                ballY = PADDING + ((vMax - val1) / (vMax - vMin)) * (height - PADDING * 2);
+                                ballY = PADDING_TOP + ((vMax - val1) / (vMax - vMin)) * contentHeight;
                             }
                         } else if (seg.kfStart.interpolation === 'linear') {
                             if (graphMode === 'speed') {
@@ -1592,7 +1880,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                                 ballY = midY - (vel * pxPerUnit);
                             } else {
                                 const curVal = val1 + segProgress * deltaVal;
-                                ballY = PADDING + ((vMax - curVal) / (vMax - vMin)) * (height - PADDING * 2);
+                                ballY = PADDING_TOP + ((vMax - curVal) / (vMax - vMin)) * contentHeight;
                             }
                         } else {
                             // CUBIC INTERPOLATION
@@ -1601,17 +1889,16 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
                             if (graphMode === 'speed') {
                                 // Velocity = dy/dx = (dy/dt) / (dx/dt)
-                                const dx = cubicBezierDerivativeOneAxis(solvedT, cp1.x, cp2.x);
-                                const dy = cubicBezierDerivativeOneAxis(solvedT, cp1.y, cp2.y);
-                                const normVel = dx === 0 ? 0 : dy / dx;
-
+                                // Use SHARED helper to ensure playhead matches drawn line exactly
+                                const normVel = getSafeVelocity(solvedT, cp1.x, cp2.x, cp1.y, cp2.y);
                                 const realVel = normVel * (deltaVal / timeSec);
+
                                 ballY = midY - (realVel * pxPerUnit);
                             } else {
                                 // Value = y(t)
                                 const valueProgress = cubicBezierOneAxis(solvedT, cp1.y, cp2.y);
                                 const curVal = val1 + valueProgress * deltaVal;
-                                ballY = PADDING + ((vMax - curVal) / (vMax - vMin)) * (height - PADDING * 2);
+                                ballY = PADDING_TOP + ((vMax - curVal) / (vMax - vMin)) * contentHeight;
                             }
                         }
 
@@ -1659,17 +1946,17 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 // Second: Hovered
                 // Third: Selected
 
-                let handleOpacity = 0.5; // Slightly more visible by default
-                let handleSize = 4;      // Larger default
-                let lineWidth = 1;
-                let strokeColor = '#666';
-                let fillColor = '#666';
+                let handleOpacity = 0.6; // Improved visibility
+                let handleSize = 5;      // Larger default (was 4)
+                let lineWidth = 2;       // Thicker lines (was 1)
+                let strokeColor = '#888'; // Lighter grey
+                let fillColor = '#888';
 
                 // Base style for selected keyframe handles
                 if (isKeyframeSelected) {
-                    handleOpacity = 0.9;
-                    handleSize = 6;      // Larger selected
-                    lineWidth = 1.5;
+                    handleOpacity = 1.0;
+                    handleSize = 6;
+                    lineWidth = 2;
                     strokeColor = '#fff';
                     fillColor = '#fff';
                 }
@@ -1682,11 +1969,6 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     fillColor = '#fff';
                 }
 
-                // Specific handle highlighting logic
-                // If Keyframe is selected, both handles are "active" visually, 
-                // but we might want to highlight specifically the In or Out if they are being manipulated?
-                // For now, if Keyframe is selected, show both handles strong.
-
                 ctx.globalAlpha = handleOpacity;
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = lineWidth;
@@ -1694,7 +1976,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
                 // OUT Handle
                 if (h.outHandle) {
-                    const isSpecificSelected = isKeyframeSelected; // Both handles light up
+                    const isSpecificSelected = isKeyframeSelected;
 
                     ctx.beginPath();
                     ctx.moveTo(h.kfX, h.kfY);
@@ -1750,15 +2032,16 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
                 ctx.globalAlpha = 1.0;
 
-                // Keyframe marker
-                // Always draw this to ensure we know where the handle originates
+                // Keyframe marker (CIRCLE instead of Rect)
+                // Match reference: Solid circle, 10px diameter (r=5)
                 ctx.beginPath();
                 ctx.fillStyle = isKeyframeSelected ? '#3b82f6' : '#888';
-                ctx.rect(h.kfX - 3, h.kfY - 3, 6, 6);
+                ctx.arc(h.kfX, h.kfY, 5, 0, Math.PI * 2);
                 ctx.fill();
+
                 if (isKeyframeSelected) {
                     ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 1;
+                    ctx.lineWidth = 2; // Thicker border
                     ctx.stroke();
                 }
             });
@@ -2029,13 +2312,9 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 document.body
             )}
             {/* Marquee Overlay */}
-            {selectionRect && (
+            {selectionRect && createPortal(
                 <div style={{
-                    position: 'fixed', // DOMRect from state is typically Client Rect (Screen). 
-                    // However, setSelectionRect usage with clientX/Y creates Client Coordinates.
-                    // If the container has `transform`, `fixed` is safer for screen coords, OR `absolute` if we calculated relative to container.
-                    // We used `e.clientX`. So these are viewport coordinates. 
-                    // `fixed` is correct for viewport coordinates.
+                    position: 'fixed',
                     left: selectionRect.x,
                     top: selectionRect.y,
                     width: selectionRect.width,
@@ -2044,7 +2323,8 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     backgroundColor: 'rgba(0, 120, 255, 0.25)',
                     pointerEvents: 'none',
                     zIndex: 9999
-                }} />
+                }} />,
+                document.body
             )}
         </div>
     );

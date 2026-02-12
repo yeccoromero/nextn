@@ -88,10 +88,10 @@ export default function ProjectPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = (Array.isArray(params.projectId) ? params.projectId[0] : params.projectId) as string;
-  
+
   // Here you would also fetch the project data and check for permissions
   // For now, we'll just protect the route
-  
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace('/login');

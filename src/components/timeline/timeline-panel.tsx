@@ -12,8 +12,10 @@ import { formatTime } from './transport';
 import { PropertyId, InterpolationType } from "@/types/editor";
 import { GripVertical } from 'lucide-react';
 import { TimelineNavigator } from './timeline-navigator';
-import { ManualContextMenu } from './manual-context-menu';
-import { GraphEditorPanel } from './graph-editor-panel';
+import dynamic from 'next/dynamic';
+
+const ManualContextMenu = dynamic(() => import('./manual-context-menu').then(mod => mod.ManualContextMenu), { ssr: false });
+const GraphEditorPanel = dynamic(() => import('./graph-editor-panel').then(mod => mod.GraphEditorPanel), { ssr: false });
 import { useScrollSync } from '@/hooks/use-scroll-sync';
 
 const ROW_HEIGHT = 28;
@@ -647,12 +649,16 @@ export default function TimelinePanel() {
             onKeyframeContextMenu={handleKeyframeContextMenu}
           />
         ) : (
-          <GraphEditorPanel
-            scrollRef={localTracksContainerRef}
-            panelWidth={panelWidth}
-            originMs={originMs}
-            msPerPx={msPerPx}
-          />
+          <div className="relative h-full" style={{ width: contentWidthPx }}>
+            <div className="sticky left-0 top-0 h-full" style={{ width: panelWidth }}>
+              <GraphEditorPanel
+                scrollRef={localTracksContainerRef}
+                panelWidth={panelWidth}
+                originMs={originMs}
+                msPerPx={msPerPx}
+              />
+            </div>
+          </div>
         )}
 
         {marqueeRect && (
