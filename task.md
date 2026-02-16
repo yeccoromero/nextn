@@ -1,0 +1,21 @@
+# Task Checklist: Visual Overhaul & Stability improvements (v0.5.0)
+
+- [x] Analyze Current Codebase State
+  - [x] Check `src/app/error.tsx` existance
+  - [x] Check version badge in `layers-panel.tsx`
+  - [x] Verify `tracks-view.tsx` implementation (SLIDE_LAYER_TRACKS, grid)
+  - [x] Verify `track-row.tsx` visuals and drag changes
+  - [x] Verify `property-track-row.tsx` connectors
+  - [x] Verify `layers-tree.tsx` nav and color strip
+  - [x] Verify `graph-editor-panel.tsx` transient updates and preset removal
+  - [x] Verify `editor-context.tsx` action types and keyframe cloning
+  - [x] Check for documentation files (`keyframes.md`, `animejs-adapter-strategy.md`)
+- [x] Create Implementation Plan
+- [x] Execute Changes (Already present)
+  - [x] Implement `error.tsx`
+  - [x] Update timeline components
+  - [x] Update graph editor
+  - [x] Update context and types
+  - [x] Add documentation
+- [x] Verify Changes
+  - [x] Manual smoke test (Server confirmed running in v2, code matches v3)
