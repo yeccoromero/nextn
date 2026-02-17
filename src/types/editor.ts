@@ -50,6 +50,20 @@ export type RadialGradientFill = {
 
 export type Fill = string | LinearGradientFill | RadialGradientFill;
 
+// ─── Effects System ─────────────────────────────────────────────────
+export interface BendItEffect {
+  type: 'bend-it';
+  id: string;
+  enabled: boolean;
+  bendDegrees: number;
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  prestart: 'none' | 'static' | 'bend' | 'mirror';
+  postEnd: 'legal' | 'extended';
+}
+
+export type EffectInstance = BendItEffect; // Union grows as we add effects
+
 export interface SvgBase {
   id: string;
   name?: string;
