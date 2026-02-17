@@ -900,11 +900,36 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       }
 
       draft.selectedObjectIds = newObjectIds;
+
+      // Normalize propery ID for isolation
+      const normalizedPid = (propertyId === 'scaleX' || propertyId === 'scaleY') ? 'scale' : propertyId;
+
       draft.timeline.selection = {
         objectId: newObjectIds.length > 0 ? objectId : undefined,
         propertyId: newObjectIds.length > 0 ? propertyId : undefined,
-        keyIds: newKeyIds
+        keyIds: newKeyIds,
+        properties: draft.timeline.selection.properties || []
       };
+
+      if (!additive) {
+        // Exclusive selection -> Exclusive isolation
+        if (newObjectIds.length > 0) {
+          draft.timeline.selection.properties = [{ objectId, propertyId: normalizedPid as PropertyId }];
+        } else {
+          draft.timeline.selection.properties = [];
+        }
+      } else {
+        // Additive: Ensure property is visible if we selected a key
+        if (!draft.timeline.selection.properties) draft.timeline.selection.properties = [];
+
+        // If we just added a key (not removed), ensure property is listed
+        if (!alreadySelected && newObjectIds.length > 0) {
+          const exists = draft.timeline.selection.properties.some(p => p.objectId === objectId && p.propertyId === normalizedPid);
+          if (!exists) {
+            draft.timeline.selection.properties.push({ objectId, propertyId: normalizedPid as PropertyId });
+          }
+        }
+      }
 
       return;
     }
