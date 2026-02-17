@@ -912,11 +912,23 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       };
 
       if (!additive) {
-        // Exclusive selection -> Exclusive isolation
-        if (newObjectIds.length > 0) {
-          draft.timeline.selection.properties = [{ objectId, propertyId: normalizedPid as PropertyId }];
+        // Exclusive selection
+
+        // CHECK PERSISTENCE: Is the property ALREADY visible?
+        const isAlreadyVisible = (draft.timeline.selection.properties || []).some(
+          p => p.objectId === objectId && p.propertyId === normalizedPid
+        );
+
+        if (isAlreadyVisible) {
+          // 1. If visible, KEEP current view (don't hide others)
+          // This allows editing a keyframe in a multi-prop view without losing context
         } else {
-          draft.timeline.selection.properties = [];
+          // 2. If NOT visible, switch context to this property (Standard exclusive behavior)
+          if (newObjectIds.length > 0) {
+            draft.timeline.selection.properties = [{ objectId, propertyId: normalizedPid as PropertyId }];
+          } else {
+            draft.timeline.selection.properties = [];
+          }
         }
       } else {
         // Additive: Ensure property is visible if we selected a key
