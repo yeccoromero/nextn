@@ -1262,7 +1262,12 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
               ...controlPoints
             };
 
-            kf.interpolation = "bezier";
+
+            // Preserve original interpolation type (ease, bezier, etc.)
+            // Only update if it was 'linear' or 'hold' (no control points)
+            if (kf.interpolation === 'linear' || kf.interpolation === 'hold') {
+              kf.interpolation = 'bezier';
+            }
           }
         }
       }
