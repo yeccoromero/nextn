@@ -183,7 +183,9 @@ const initialState: EditorState = {
     playbackRate: 1,
     workArea: null,
     layers: {},
-    selection: {},
+    selection: {
+      properties: []
+    },
     ui: {
       zoom: 1,
       snap: true,
@@ -799,44 +801,45 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       // Get unique object IDs from the selected keyframes
       const pickedObjectIds = Array.from(new Set(keys.map(k => k.objectId)));
 
-      const prevKeyIds = draft.timeline.selection.keyIds ?? [];
-      // Get currently selected objects
-      const prevObjectIds = draft.selectedObjectIds ?? [];
-
       if (additive) {
-        // MERGE: Add new keys to existing selection
-        draft.timeline.selection.keyIds = Array.from(new Set([...prevKeyIds, ...pickedKeyIds]));
-        // MERGE: Add new objects to existing selection
-        draft.selectedObjectIds = Array.from(new Set([...prevObjectIds, ...pickedObjectIds]));
+        // Add unique keyframes to selection
+        const newKeyIds = Array.from(new Set([...(draft.timeline.selection.keyIds || []), ...pickedKeyIds]));
+        draft.timeline.selection.keyIds = newKeyIds;
+
+        // Add unique objects to selection? (Optional, maybe keep focus on keyframes)
+        // For now, let's keep object selection separate or additive if desired.
+        // But crucially, let's update property isolation:
+
+        if (!draft.timeline.selection.properties) draft.timeline.selection.properties = [];
+
+        keys.forEach(k => {
+          const exists = draft.timeline.selection.properties!.some(p => p.objectId === k.objectId && p.propertyId === k.propertyId);
+          if (!exists) {
+            draft.timeline.selection.properties!.push({ objectId: k.objectId, propertyId: k.propertyId });
+          }
+        });
+
       } else {
-        // REPLACE: Set keys to new selection
+        // Replace selection
         draft.timeline.selection.keyIds = pickedKeyIds;
 
-        // REPLACE: Set objects to new selection, but handle empty case wisely
-        if (keys.length > 0) {
-          draft.selectedObjectIds = pickedObjectIds;
-        }
-        // Do NOT clear selectedObjectIds if keys are empty. 
-        // We want to keep the current object view context even if keyframes are deselected.
-      }
+        // Also update object selection to reflect the layers these keys belong to?
+        // Often good for context, but let's stick to requested behavior: Property Isolation.
 
-      // Update primary selection pointer (last selected item context)
-      if (keys.length > 0) {
-        const firstKey = keys[0];
-        draft.timeline.selection.objectId = firstKey.objectId;
-        draft.timeline.selection.propertyId = firstKey.propertyId;
-      } else if (!additive) {
-        delete draft.timeline.selection.objectId;
-        delete draft.timeline.selection.propertyId;
+        // Isolate properties of selected keyframes
+        const newProps: { objectId: string, propertyId: PropertyId }[] = [];
+        keys.forEach(k => {
+          const exists = newProps.some(p => p.objectId === k.objectId && p.propertyId === k.propertyId);
+          if (!exists) {
+            newProps.push({ objectId: k.objectId, propertyId: k.propertyId });
+          }
+        });
+        draft.timeline.selection.properties = newProps;
       }
-
-      // Update UI focus to reflect new selection
-      if (draft.selectedObjectIds.length > 0) {
-        draft.ui.focus = { type: 'selection', payload: { objectIds: draft.selectedObjectIds } };
-      }
-
       return;
     }
+
+
     case 'DELETE_SELECTED_KEYFRAMES': {
       const { keyIds } = draft.timeline.selection;
       if (!keyIds || keyIds.length === 0) return;
@@ -1218,6 +1221,37 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
 
             kf.interpolation = "bezier";
           }
+        }
+      }
+      return;
+    }
+    case 'SELECT_PROPERTY_TRACK': {
+      const { objectId, propertyId, additive } = action.payload;
+
+      // Ensure properties array exists
+      if (!draft.timeline.selection.properties) {
+        draft.timeline.selection.properties = [];
+      }
+
+      const existingIndex = draft.timeline.selection.properties.findIndex(
+        p => p.objectId === objectId && p.propertyId === propertyId
+      );
+
+      if (additive) {
+        if (existingIndex !== -1) {
+          // Toggle OFF
+          draft.timeline.selection.properties.splice(existingIndex, 1);
+        } else {
+          // Toggle ON
+          draft.timeline.selection.properties.push({ objectId, propertyId });
+        }
+      } else {
+        // Exclusive Select
+        if (existingIndex !== -1 && draft.timeline.selection.properties.length === 1) {
+          // Already exclusively selected, do nothing or deselect? Usually do nothing.
+        } else {
+          // Replace selection
+          draft.timeline.selection.properties = [{ objectId, propertyId }];
         }
       }
       return;
@@ -1625,6 +1659,9 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       draft.ui.isEditingGradient = false;
       draft.ui.focus = { type: 'selection', payload: { objectIds: newSelectedIds } };
       draft.selectedPathNodes = [];
+      if (!shiftKey) {
+        if (draft.timeline.selection) draft.timeline.selection.properties = [];
+      }
       return;
     }
 
@@ -1648,6 +1685,9 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       draft.ui.isEditingGradient = false;
       draft.ui.focus = { type: 'selection', payload: { objectIds: draft.selectedObjectIds } };
       draft.selectedPathNodes = [];
+      if (!shiftKey) {
+        if (draft.timeline.selection) draft.timeline.selection.properties = [];
+      }
       return;
     }
 
@@ -1657,6 +1697,7 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       draft.selectedPathNodes = [];
       draft.ui.isEditingGradient = false;
       draft.ui.focus = { type: 'selection', payload: { objectIds: [] } };
+      if (draft.timeline.selection) draft.timeline.selection.properties = [];
       return;
 
     case 'DELETE_SELECTED': {

@@ -255,6 +255,7 @@ export interface TimelineState {
     keyIds?: string[];
     objectId?: string;
     propertyId?: PropertyId;
+    properties?: Array<{ objectId: string, propertyId: PropertyId }>;
   };
   ui: {
     zoom: number;
@@ -457,6 +458,7 @@ export type EditorAction = (
   | { type: 'SET_KEYFRAME_TANGENT_MODE'; payload: { objectId: string; propertyId: PropertyId; keyframeId: string; mode: 'broken' | 'smooth' | 'auto' } }
   | { type: 'UPDATE_KEYFRAME_CONTROL_POINTS', payload: { objectId: string; propertyId: PropertyId; keyframeId: string; controlPoints: Partial<{ x1: number; y1: number; x2: number; y2: number }> } }
   | { type: 'CLEAR_KEYFRAME_SELECTION' }
+  | { type: 'SELECT_PROPERTY_TRACK'; payload: { objectId: string; propertyId: PropertyId; additive?: boolean } }
   | { type: 'POSITION_SELECT_KEYFRAME'; payload: { objectId: string; timeMs: number; additive?: boolean } }
   | { type: 'POSITION_MOVE_KEYFRAME'; payload: { objectId: string; fromTimeMs: number; toTimeMs: number }, transient?: boolean }
   | { type: 'POSITION_DELETE_KEYFRAME'; payload: { objectId: string; timeMs: number } }

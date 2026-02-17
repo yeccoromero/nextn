@@ -23,9 +23,26 @@ interface GraphEditorPanelProps {
 interface Point { x: number; y: number }
 
 function getSelectedTracks(state: any): { objectId: string, track: PropertyTrack }[] {
-    const selectedIds = state.selectedObjectIds || [];
+    const selectedProperties = state.timeline.selection?.properties || [];
     const tracks: { objectId: string, track: PropertyTrack }[] = [];
+
+    // Mode 1: Property Isolation (Solo Mode)
+    if (selectedProperties.length > 0) {
+        for (const { objectId, propertyId } of selectedProperties) {
+            const layer = state.timeline.layers[objectId];
+            if (!layer) continue;
+            const track = layer.properties.find((p: PropertyTrack) => p.id === propertyId);
+            if (track && track.keyframes.length > 0) {
+                tracks.push({ objectId, track });
+            }
+        }
+        return tracks;
+    }
+
+    // Mode 2: Show All for Selected Objects (Default)
+    const selectedIds = state.selectedObjectIds || [];
     if (selectedIds.length === 0) return tracks;
+
     for (const objId of selectedIds) {
         const layer = state.timeline.layers[objId];
         if (!layer) continue;

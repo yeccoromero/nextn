@@ -88,3 +88,21 @@ To keep the project root clean (`/`), we follow this policy:
 
 ### 🤖 Auto-Archival Rule
 **Agente**: When a Plan is marked as `[x] Completed` in `PLAN.md`, you **MUST** immediately run `npm run archive <PlanFile.md>` to keep the workspace clean.
+
+---
+
+## 6. Optimized Git Strategy (Credit Saver)
+
+To optimize AI token consumption, we use a **Low-Frequency Commit Strategy**.
+
+### The Rule
+> **"Don't ask the Agent to commit every small change."**
+
+### Protocol
+1.  **Work Session**: We perform multiple related changes (e.g., "Fix styling", "Refactor logic", "Update docs") in a single session.
+2.  **Bitácora First**: We log progress in `BITACORA.md` (Low cost) instead of Git (High cost/risk).
+3.  **Checkpoint (The Save Point)**: Only when a **Task** or **Feature** is 100% complete and verified, we commit.
+
+### User Override (Free Tier)
+*   **Tip**: You (The User) can run `git commit -am "wip"` in your terminal at any time. **It's free.**
+*   The Agent will only request a commit when closing a major task to establish a safe rollback point.

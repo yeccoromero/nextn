@@ -114,6 +114,11 @@ const PropertyRowUI = ({
 
   if (!object) return null;
 
+  if (!object) return null;
+  const isSelected = timeline.selection.properties?.some(
+    p => p.objectId === objectId && p.propertyId === propertyId
+  );
+
   const layerTrack = timeline.layers[objectId];
 
   const getPropertyTrack = (pid: PropertyId): PropertyTrack | undefined => {
@@ -381,10 +386,20 @@ const PropertyRowUI = ({
           "h-full w-full",
           "grid grid-cols-[1fr_auto_auto] items-center gap-2", // Adjusted grid
           "rounded-md",
+          "rounded-md",
           "bg-transparent hover:bg-accent/30",
-          "px-2"
+          isSelected && "bg-primary/10",
+          "px-2",
+          "cursor-pointer"
         )}
         style={{ paddingLeft: `${padLeft}px` }}
+        onClick={(e) => {
+          e.stopPropagation();
+          dispatch({
+            type: 'SELECT_PROPERTY_TRACK',
+            payload: { objectId, propertyId, additive: e.shiftKey || e.metaKey }
+          });
+        }}
       >
         <div className="min-w-0" onDoubleClick={(e) => e.stopPropagation()}>
           <div className="text-[11px] leading-none text-muted-foreground/70">
