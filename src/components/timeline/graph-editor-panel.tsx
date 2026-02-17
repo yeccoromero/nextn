@@ -1067,11 +1067,15 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 // Calculate signed velocity for speed graph
                 let cp1 = { x: 0.33, y: 0 };
                 let cp2 = { x: 0.67, y: 1 };
-                if ((kf1.interpolation === 'bezier' || kf1.interpolation === 'ease') && kf1.controlPoints) {
+                if ((kf1.interpolation === 'bezier' || kf1.interpolation === 'ease' || kf1.interpolation === 'ease-in' || kf1.interpolation === 'ease-out') && kf1.controlPoints) {
                     cp1 = { x: kf1.controlPoints.x1, y: kf1.controlPoints.y1 };
                     cp2 = { x: kf1.controlPoints.x2, y: kf1.controlPoints.y2 };
                 } else if (kf1.interpolation === 'ease') {
-                    cp1 = { x: 0.42, y: 0 }; cp2 = { x: 0.58, y: 1 };
+                    cp1 = { x: 0.25, y: 0.1 }; cp2 = { x: 0.25, y: 1.0 };
+                } else if (kf1.interpolation === 'ease-in') {
+                    cp1 = { x: 0.42, y: 0 }; cp2 = { x: 1.0, y: 1.0 };
+                } else if (kf1.interpolation === 'ease-out') {
+                    cp1 = { x: 0, y: 0 }; cp2 = { x: 0.58, y: 1.0 };
                 }
 
                 if (kf1.interpolation === 'linear') {
@@ -1267,12 +1271,18 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     constantVel = deltaVal / timeSec;
                     cp1 = { x: 0, y: 0 };
                     cp2 = { x: 1, y: 1 };
-                } else if ((kf1.interpolation === 'bezier' || kf1.interpolation === 'ease') && kf1.controlPoints) {
+                } else if ((kf1.interpolation === 'bezier' || kf1.interpolation === 'ease' || kf1.interpolation === 'ease-in' || kf1.interpolation === 'ease-out') && kf1.controlPoints) {
                     cp1 = { x: kf1.controlPoints.x1, y: kf1.controlPoints.y1 };
                     cp2 = { x: kf1.controlPoints.x2, y: kf1.controlPoints.y2 };
                 } else if (kf1.interpolation === 'ease') {
+                    cp1 = { x: 0.25, y: 0.1 };
+                    cp2 = { x: 0.25, y: 1.0 };
+                } else if (kf1.interpolation === 'ease-in') {
                     cp1 = { x: 0.42, y: 0 };
-                    cp2 = { x: 0.58, y: 1 };
+                    cp2 = { x: 1.0, y: 1.0 };
+                } else if (kf1.interpolation === 'ease-out') {
+                    cp1 = { x: 0, y: 0 };
+                    cp2 = { x: 0.58, y: 1.0 };
                 }
 
                 const segmentPoints: { x: number, y: number }[] = [];
