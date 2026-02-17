@@ -813,9 +813,12 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
         if (!draft.timeline.selection.properties) draft.timeline.selection.properties = [];
 
         keys.forEach(k => {
-          const exists = draft.timeline.selection.properties!.some(p => p.objectId === k.objectId && p.propertyId === k.propertyId);
+          // Normalize Property ID (scaleX/scaleY -> scale) for track lookup
+          const normalizedPid = (k.propertyId === 'scaleX' || k.propertyId === 'scaleY') ? 'scale' : k.propertyId;
+
+          const exists = draft.timeline.selection.properties!.some(p => p.objectId === k.objectId && p.propertyId === normalizedPid);
           if (!exists) {
-            draft.timeline.selection.properties!.push({ objectId: k.objectId, propertyId: k.propertyId });
+            draft.timeline.selection.properties!.push({ objectId: k.objectId, propertyId: normalizedPid as PropertyId });
           }
         });
 
@@ -829,9 +832,12 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
         // Isolate properties of selected keyframes
         const newProps: { objectId: string, propertyId: PropertyId }[] = [];
         keys.forEach(k => {
-          const exists = newProps.some(p => p.objectId === k.objectId && p.propertyId === k.propertyId);
+          // Normalize Property ID (scaleX/scaleY -> scale) for track lookup
+          const normalizedPid = (k.propertyId === 'scaleX' || k.propertyId === 'scaleY') ? 'scale' : k.propertyId;
+
+          const exists = newProps.some(p => p.objectId === k.objectId && p.propertyId === normalizedPid);
           if (!exists) {
-            newProps.push({ objectId: k.objectId, propertyId: k.propertyId });
+            newProps.push({ objectId: k.objectId, propertyId: normalizedPid as PropertyId });
           }
         });
         draft.timeline.selection.properties = newProps;
@@ -1226,7 +1232,10 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       return;
     }
     case 'SELECT_PROPERTY_TRACK': {
-      const { objectId, propertyId, additive } = action.payload;
+      let { objectId, propertyId, additive } = action.payload;
+
+      // Normalize scaleX/scaleY -> scale
+      if (propertyId === 'scaleX' || propertyId === 'scaleY') propertyId = 'scale';
 
       // Ensure properties array exists
       if (!draft.timeline.selection.properties) {
