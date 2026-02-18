@@ -169,26 +169,26 @@ const WorkAreaControls = ({ innerWidth, originMs, msPerPx }: { innerWidth: numbe
       <div
         data-workarea-handle
         className={cn(
-          "absolute top-0 bottom-0 -translate-x-1/2 w-2 cursor-ew-resize flex items-center justify-center pointer-events-auto",
-          isPlayheadOnStart && "pointer-events-none"
+          "absolute top-0 bottom-0 -translate-x-1/2 w-6 cursor-ew-resize flex items-center justify-center group pointer-events-auto z-20",
+          // Removed pointer-events-none check to allow grabbing even if playhead overlaps
         )}
         style={{ left: startX }}
         onPointerDown={(e) => onDown(e, 'start')}
       >
-        <GripVertical className="h-4 w-4 text-primary/80" />
+        <div className="w-1.5 h-4 bg-blue-500 rounded-full group-hover:scale-110 transition-transform" />
       </div>
 
       {/* Handle fin */}
       <div
         data-workarea-handle
         className={cn(
-          "absolute top-0 bottom-0 -translate-x-1/2 w-2 cursor-ew-resize flex items-center justify-center pointer-events-auto",
-          isPlayheadOnEnd && "pointer-events-none"
+          "absolute top-0 bottom-0 -translate-x-1/2 w-6 cursor-ew-resize flex items-center justify-center group pointer-events-auto z-20",
+          // Removed pointer-events-none check
         )}
         style={{ left: endX }}
         onPointerDown={(e) => onDown(e, 'end')}
       >
-        <GripVertical className="h-4 w-4 text-primary/80" />
+        <div className="w-1.5 h-4 bg-blue-500 rounded-full group-hover:scale-110 transition-transform" />
       </div>
     </div>
   );
