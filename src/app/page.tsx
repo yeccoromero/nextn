@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { createProject, deleteProject, duplicateProject, updateProjectName } from '@/lib/db';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { getProjects, createProject, deleteProject, duplicateProject, updateProjectName } from '@/lib/local-db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MoreHorizontal, PlusCircle, Pencil, Copy, Trash2 } from 'lucide-react';
 import {
@@ -37,7 +36,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
-import { signOut } from 'firebase/auth';
 
 interface Project {
   id: string;
@@ -45,14 +43,11 @@ interface Project {
 }
 
 export default function DashboardPage() {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading, logout } = useAuth();
   const router = useRouter();
-  const db = useFirestore();
-  const auth = useAuth();
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
@@ -69,54 +64,21 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (user) {
-      const fetchProjects = async () => {
-        try {
-          setIsLoadingProjects(true);
-
-          const userProjectsQuery = query(
-            collection(db, "projects"),
-            where("ownerId", "==", user.uid)
-          );
-
-          const querySnapshot = await getDocs(userProjectsQuery);
-          const userProjects = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name,
-          }));
-          setProjects(userProjects);
-        } catch (error) {
-          console.error("Error fetching projects:", error);
-          toast({
-            variant: "destructive",
-            title: "Error fetching projects",
-            description: "Could not load your projects. Please try again later.",
-          });
-        } finally {
-          setIsLoadingProjects(false);
-        }
-      };
-      fetchProjects();
+      setIsLoadingProjects(true);
+      const userProjects = getProjects(user.uid);
+      setProjects(userProjects.map(p => ({ id: p.id, name: p.name })));
+      setIsLoadingProjects(false);
     }
-  }, [user, db, toast]);
+  }, [user]);
 
-  const handleCreateProject = async () => {
+  const handleCreateProject = () => {
     if (!user || !newProjectName.trim()) return;
-    setIsCreatingProject(true);
-    try {
-      const newProjectId = await createProject(db, user.uid, newProjectName);
-      toast({
-        title: "Project Created",
-        description: `Successfully created "${newProjectName}".`,
-      });
-      router.push(`/projects/${newProjectId}`);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error creating project",
-        description: "Could not create the project. Please check permissions and try again.",
-      });
-      setIsCreatingProject(false);
-    }
+    const newProjectId = createProject(user.uid, newProjectName);
+    toast({
+      title: "Project Created",
+      description: `Successfully created "${newProjectName}".`,
+    });
+    router.push(`/projects/${newProjectId}`);
   };
 
   const handleOpenRenameDialog = (project: Project) => {
@@ -124,58 +86,36 @@ export default function DashboardPage() {
     setProjectNameForRename(project.name);
   };
 
-  const handleConfirmRename = async () => {
+  const handleConfirmRename = () => {
     if (!renamingProject || !projectNameForRename.trim()) return;
-    try {
-      await updateProjectName(db, renamingProject.id, projectNameForRename.trim());
-      setProjects(projects.map(p => p.id === renamingProject.id ? { ...p, name: projectNameForRename.trim() } : p));
-      toast({ title: "Project renamed successfully" });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Failed to rename project" });
-    } finally {
-      setRenamingProject(null);
-    }
+    updateProjectName(renamingProject.id, projectNameForRename.trim());
+    setProjects(projects.map(p => p.id === renamingProject.id ? { ...p, name: projectNameForRename.trim() } : p));
+    toast({ title: "Project renamed successfully" });
+    setRenamingProject(null);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     if (!deletingProject) return;
-    try {
-      await deleteProject(db, deletingProject.id);
-      setProjects(projects.filter(p => p.id !== deletingProject.id));
-      toast({ title: "Project deleted" });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Failed to delete project" });
-    } finally {
-      setDeletingProject(null);
-    }
+    deleteProject(deletingProject.id);
+    setProjects(projects.filter(p => p.id !== deletingProject.id));
+    toast({ title: "Project deleted" });
+    setDeletingProject(null);
   };
 
-  const handleDuplicateProject = async (project: Project) => {
+  const handleDuplicateProject = (project: Project) => {
     if (!user) return;
-    try {
-      const newProject = await duplicateProject(db, user.uid, project);
-      setProjects(prev => [...prev, newProject]);
-      toast({ title: "Project duplicated" });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Failed to duplicate project" });
-    }
+    const newProject = duplicateProject(user.uid, project);
+    setProjects(prev => [...prev, newProject]);
+    toast({ title: "Project duplicated" });
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      router.push('/login');
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Logout Failed",
-        description: "There was an error signing out.",
-      });
-    }
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
   };
 
   if (isUserLoading || !user) {
-    return <div className="flex h-screen w-screen items-center justify-center bg-canvas">Loading...</div>;
+    return <div className="flex h-screen w-screen items-center justify-center bg-background">Loading...</div>;
   }
 
   return (
@@ -183,7 +123,7 @@ export default function DashboardPage() {
       <header className="flex h-16 items-center justify-between border-b px-8">
         <h1 className="text-xl font-bold">Vectoria</h1>
         <div className="flex items-center gap-4">
-          <span className="text-sm">{user.email}</span>
+          <span className="text-sm">{user.displayName}</span>
           <Button variant="ghost" onClick={handleLogout}>Log Out</Button>
         </div>
       </header>
@@ -222,9 +162,9 @@ export default function DashboardPage() {
                 <Button
                   type="submit"
                   onClick={handleCreateProject}
-                  disabled={isCreatingProject || !newProjectName.trim()}
+                  disabled={!newProjectName.trim()}
                 >
-                  {isCreatingProject ? 'Creating...' : 'Create Project'}
+                  Create Project
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -236,10 +176,14 @@ export default function DashboardPage() {
         ) : projects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {projects.map((project) => (
-              <Card key={project.id}>
+              <Card
+                key={project.id}
+                className="cursor-pointer transition-colors hover:border-primary/50 group"
+                onClick={() => router.push(`/projects/${project.id}`)}
+              >
                 <CardHeader className="flex flex-row items-start justify-between">
-                  <div className="cursor-pointer flex-1" onClick={() => router.push(`/projects/${project.id}`)}>
-                    <CardTitle className="truncate">{project.name}</CardTitle>
+                  <div className="flex-1">
+                    <CardTitle className="truncate group-hover:text-primary transition-colors">{project.name}</CardTitle>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -264,8 +208,8 @@ export default function DashboardPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </CardHeader>
-                <CardContent className="cursor-pointer" onClick={() => router.push(`/projects/${project.id}`)}>
-                  <div className="w-full h-32 rounded-md bg-muted flex items-center justify-center">
+                <CardContent>
+                  <div className="w-full h-32 rounded-md bg-muted flex items-center justify-center group-hover:bg-muted/80 transition-colors">
                     <p className="text-sm text-muted-foreground">Preview</p>
                   </div>
                 </CardContent>
@@ -313,7 +257,7 @@ export default function DashboardPage() {
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the
-              project "{deletingProject?.name}".
+              project &quot;{deletingProject?.name}&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

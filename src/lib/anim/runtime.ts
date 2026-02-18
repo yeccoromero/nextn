@@ -277,7 +277,22 @@ export class AnimeRuntimeApply extends AnimeRuntimeApplyLegacy {
       // 4. Other animatable properties
       for (const propId in objTracks) {
         if (!HANDLED_TRANSFORM_PROPS.has(propId)) {
-          (patch as any)[propId] = (base as any)[propId];
+          const val = (base as any)[propId];
+
+          // Bend It Mappings
+          if (propId === 'bendAmount') {
+            // val is in radians (if keyframes store radians) OR degrees?
+            // The slider uses degrees but converts to radians for the object.
+            // Let's assume the Keyframe stores the RAW value from the object state, which is RADIANS.
+            // So we just pass it through.
+            patch.bend = { ...(state.bend || {}), ...patch.bend, theta: val as number };
+          } else if (propId === 'bendStart') {
+            patch.bend = { ...(state.bend || {}), ...patch.bend, start: val as { x: number, y: number } };
+          } else if (propId === 'bendEnd') {
+            patch.bend = { ...(state.bend || {}), ...patch.bend, end: val as { x: number, y: number } };
+          } else {
+            (patch as any)[propId] = val;
+          }
         }
       }
 

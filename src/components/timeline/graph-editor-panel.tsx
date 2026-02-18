@@ -1071,7 +1071,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     cp1 = { x: kf1.controlPoints.x1, y: kf1.controlPoints.y1 };
                     cp2 = { x: kf1.controlPoints.x2, y: kf1.controlPoints.y2 };
                 } else if (kf1.interpolation === 'ease') {
-                    cp1 = { x: 0.25, y: 0.1 }; cp2 = { x: 0.25, y: 1.0 };
+                    cp1 = { x: 0.42, y: 0 }; cp2 = { x: 0.58, y: 1.0 };
                 } else if (kf1.interpolation === 'ease-in') {
                     cp1 = { x: 0.42, y: 0 }; cp2 = { x: 1.0, y: 1.0 };
                 } else if (kf1.interpolation === 'ease-out') {
@@ -1275,8 +1275,8 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     cp1 = { x: kf1.controlPoints.x1, y: kf1.controlPoints.y1 };
                     cp2 = { x: kf1.controlPoints.x2, y: kf1.controlPoints.y2 };
                 } else if (kf1.interpolation === 'ease') {
-                    cp1 = { x: 0.25, y: 0.1 };
-                    cp2 = { x: 0.25, y: 1.0 };
+                    cp1 = { x: 0.42, y: 0 };
+                    cp2 = { x: 0.58, y: 1.0 };
                 } else if (kf1.interpolation === 'ease-in') {
                     cp1 = { x: 0.42, y: 0 };
                     cp2 = { x: 1.0, y: 1.0 };

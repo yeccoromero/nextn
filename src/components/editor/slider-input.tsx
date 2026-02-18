@@ -9,6 +9,9 @@ import { cn } from '@/lib/utils';
 import { coerceNumber } from '@/lib/utils';
 import { Slider } from '../ui/slider';
 
+import { Diamond, MoreHorizontal } from 'lucide-react';
+import { FilledDiamond } from '../icons';
+
 interface SliderInputProps {
   tooltip: string;
   prefix: string | React.ReactNode;
@@ -25,6 +28,8 @@ interface SliderInputProps {
   className?: string;
   variant?: 'default' | 'compact' | 'icon';
   onPrefixClick?: () => void;
+  onToggleAnimation?: () => void;
+  isAnimated?: boolean;
 }
 
 export const SliderInput = ({
@@ -43,6 +48,8 @@ export const SliderInput = ({
   className,
   variant = 'default',
   onPrefixClick,
+  onToggleAnimation,
+  isAnimated,
 }: SliderInputProps) => {
   const dragStartRef = useRef<{ x: number, value: number } | null>(null);
 
@@ -214,11 +221,23 @@ export const SliderInput = ({
   }
 
   return (
-    <div className={cn("min-w-0", className)}>
+    <div className={cn("min-w-0 flex items-center gap-1", className)}>
+      {onToggleAnimation && (
+        <button
+          onClick={onToggleAnimation}
+          className={cn(
+            "h-8 w-6 flex items-center justify-center rounded-sm hover:bg-accent shrink-0",
+            isAnimated ? "text-blue-500" : "text-muted-foreground"
+          )}
+          title="Toggle Animation"
+        >
+          {isAnimated ? <FilledDiamond className="h-3 w-3" /> : <Diamond className="h-3 w-3" />}
+        </button>
+      )}
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center h-8 rounded-md border border-input bg-transparent focus-within:ring-1 focus-within:ring-ring hover:bg-accent/50 data-[disabled=true]:opacity-50" data-disabled={disabled}>
+            <div className="flex-1 flex items-center h-8 rounded-md border border-input bg-transparent focus-within:ring-1 focus-within:ring-ring hover:bg-accent/50 data-[disabled=true]:opacity-50 min-w-0" data-disabled={disabled}>
               <div
                 onPointerDown={handlePointerDown}
                 className={cn("px-2 text-xs font-medium text-zinc-400 h-full flex items-center data-[disabled=true]:cursor-not-allowed cursor-ew-resize", !prefix && "hidden")}

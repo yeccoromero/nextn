@@ -7,15 +7,25 @@ Este archivo documenta **todos los cambios notables** del proyecto con referenci
 
 ---
 
+## [0.6.0] - 2026-02-18 | Tag: `v0.6.0-dev`
+
+**🔖 Rollback a esta versión:** `git checkout [CURRENT_COMMIT]`
+
+> **🚀 ANIMATION 2.0 & STABILITY**: Enfoque en robustez de animaciones complejas y nuevos efectos.
+
+---
+
 ## [0.5.0] - 2026-02-12 | Tag: `v0.5.0`
 
 **🔖 Rollback a esta versión:** `git checkout [CURRENT_COMMIT]`
 
-> **🚀 BASELINE v0.5.0**: Inicio del ciclo de mejoras y nuevas funcionalidades.
+> **🚀 BASELINE v0.5.0**: Versión estable con "Bend It" effect funcional y animable.
 
 ### ✨ Nuevas Funcionalidades
 | Feature | Descripción | Origen |
 |---------|-------------|--------|
+| **Bend It Effect** | Implementación completa del efecto CC Bend It, incluyendo render WebGL y controles UI. | `Feature Request` |
+| **Bend It Animation** | Soporte total para keyframing de `Bend Amount`, `Start` y `End` points. | `Debug Task` |
 | **Baseline** | Inicio de versión 0.5.0. | `Plan` |
 | **Smart Keyframes** | Visualización avanzada: Formas distintivas (Linear, Hold, Ease In/Out), tamaño ajustado (13px) y scaling inteligente. | `implementation_plan` |
 

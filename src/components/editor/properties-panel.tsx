@@ -4,8 +4,10 @@
 'use client';
 
 import { useEditor } from '@/context/editor-context';
-import type { SvgObject, RectangleObject, EllipseObject, StarObject, TextObject, PolygonObject, AnchorPosition, AlignmentType, PathObject, Fill, LinearGradientFill, RadialGradientFill, GradientStop, PropertyId, KeyValue } from '@/types/editor';
-import { LayoutGrid, Link as LinkIcon, Link2Off, Timer, Diamond } from 'lucide-react';
+import type { SvgObject, RectangleObject, EllipseObject, StarObject, TextObject, PolygonObject, AnchorPosition, AlignmentType, PathObject, Fill, LinearGradientFill, RadialGradientFill, GradientStop, PropertyId, KeyValue, BendItEffect } from '@/types/editor';
+import { LayoutGrid, Link as LinkIcon, Link2Off, Timer, Diamond, Sparkles } from 'lucide-react';
+import { BendItControls } from '@/components/effects/BendItControls';
+import { degToRad } from '@/lib/effects/bend-math';
 import { Button } from '../ui/button';
 import { cn } from "@/lib/utils";
 import { getOverallBBox, getWorldAnchor, getOrientedBoundingBox } from '@/lib/editor-utils';
@@ -897,6 +899,59 @@ const ObjectProperties = () => {
               min={0} max={50}
             />
           </div>
+          {(() => {
+            if (selectedObjects.length !== 1 || !firstObject) return null;
+            const hasBend = !!firstObject.bend?.enabled;
+
+            const toggleBend = () => {
+              if (hasBend) {
+                handlePropertyChange({ bend: { ...firstObject.bend!, enabled: false } });
+              } else {
+                const defaultBend: BendItEffect = {
+                  enabled: true,
+                  start: { x: (firstObject.x || 0), y: (firstObject.y || 0) + (firstObject.height || 100) / 2 },
+                  end: { x: (firstObject.x || 0) + (firstObject.width || 100), y: (firstObject.y || 0) + (firstObject.height || 100) / 2 },
+                  theta: degToRad(45),
+                  prestart: 'static',
+                  postEnd: 'extended'
+                };
+                // Merge existing if present (to keep params) or use default
+                const newBend = firstObject.bend ? { ...firstObject.bend, enabled: true } : defaultBend;
+                handlePropertyChange({ bend: newBend });
+              }
+            };
+
+            const bendEffect = hasBend ? firstObject.bend : null;
+
+            return (
+              <div className="space-y-2 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold flex items-center gap-2">
+                    <Sparkles className="h-3 w-3" />
+                    Effects
+                  </p>
+                  <Button variant={hasBend ? "secondary" : "ghost"} size="sm" className="h-6 text-[10px]" onClick={toggleBend}>
+                    {hasBend ? "Bend It On" : "Add Bend It"}
+                  </Button>
+                </div>
+                {bendEffect && (
+                  <BendItControls
+                    params={bendEffect}
+                    onChange={(newParams) => {
+                      handlePropertyChange({ bend: { ...bendEffect, ...newParams } });
+                    }}
+                    onCommit={(specificPropId) => {
+                      // mapping generic commit to specific prop id if passed
+                      // if nothing passed, we might fallback or handle differently
+                      if (specificPropId) handleCommit(specificPropId as any);
+                    }}
+                    isAnimated={isPropertyAnimated}
+                    onToggleAnimation={togglePropertyAnimation}
+                  />
+                )}
+              </div>
+            );
+          })()}
           {renderPathProperties()}
           <div className="h-8" />
         </div>

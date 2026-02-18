@@ -9,13 +9,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import type { PropertyId } from '@/types/editor';
 import { degToRad, radToDeg } from "@/lib/effects/bend-math";
 import type { BendParams, Vec2 } from "@/lib/effects/bend-math";
 
 export type BendItControlsProps = {
     params: BendParams;
     onChange: (params: BendParams) => void;
-    onCommit?: () => void;
+    onCommit?: (propId?: PropertyId) => void;
+    isAnimated?: (prop: PropertyId) => boolean;
+    onToggleAnimation?: (prop: PropertyId) => void;
 };
 
 /**
@@ -26,6 +29,8 @@ export function BendItControls({
     params,
     onChange,
     onCommit,
+    isAnimated,
+    onToggleAnimation,
 }: BendItControlsProps) {
     const bendDeg = radToDeg(params.theta);
 
@@ -74,9 +79,11 @@ export function BendItControls({
                         name="bend-amount"
                         value={Math.round(bendDeg)}
                         onChange={handleBendChange}
-                        onCommit={onCommit}
+                        onCommit={() => onCommit?.('bendAmount' as any)}
                         min={-360}
                         max={360}
+                        onToggleAnimation={() => onToggleAnimation?.('bendAmount')}
+                        isAnimated={isAnimated?.('bendAmount')}
                     />
 
                     {/* Start Point */}
@@ -87,18 +94,22 @@ export function BendItControls({
                             prefix="SX"
                             value={Math.round(params.start.x)}
                             onChange={handleStartX}
-                            onCommit={onCommit}
+                            onCommit={() => onCommit?.('bendStart' as any)}
                             min={-2000}
                             max={4000}
+                            onToggleAnimation={() => onToggleAnimation?.('bendStart')}
+                            isAnimated={isAnimated?.('bendStart')}
                         />
                         <SliderInput
                             tooltip="Start Y"
                             prefix="SY"
                             value={Math.round(params.start.y)}
                             onChange={handleStartY}
-                            onCommit={onCommit}
+                            onCommit={() => onCommit?.('bendStart' as any)}
                             min={-2000}
                             max={4000}
+                            onToggleAnimation={() => onToggleAnimation?.('bendStart')}
+                            isAnimated={isAnimated?.('bendStart')}
                         />
                     </div>
 
@@ -110,18 +121,22 @@ export function BendItControls({
                             prefix="EX"
                             value={Math.round(params.end.x)}
                             onChange={handleEndX}
-                            onCommit={onCommit}
+                            onCommit={() => onCommit?.('bendEnd' as any)}
                             min={-2000}
                             max={4000}
+                            onToggleAnimation={() => onToggleAnimation?.('bendEnd')}
+                            isAnimated={isAnimated?.('bendEnd')}
                         />
                         <SliderInput
                             tooltip="End Y"
                             prefix="EY"
                             value={Math.round(params.end.y)}
                             onChange={handleEndY}
-                            onCommit={onCommit}
+                            onCommit={() => onCommit?.('bendEnd' as any)}
                             min={-2000}
                             max={4000}
+                            onToggleAnimation={() => onToggleAnimation?.('bendEnd')}
+                            isAnimated={isAnimated?.('bendEnd')}
                         />
                     </div>
 

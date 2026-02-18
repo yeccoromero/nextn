@@ -12,8 +12,7 @@ import { transformObjectByResize, rotateAroundWorldPivot } from '@/lib/geometry'
 import { AnimeRuntimeApply } from '@/lib/anim/runtime';
 import { buildTimelineRows } from '@/lib/anim/timeline-rows';
 import { clipboard } from '@/lib/clipboard';
-import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
-import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { useUser } from '@/lib/auth';
 import { useAeKeyboardNudge } from '@/hooks/use-ae-keyboard-nudge';
 
 enablePatches();
@@ -954,36 +953,77 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       return;
     }
     case 'TOGGLE_PROPERTY_ANIMATION': {
-      const { objectId, propertyId: rawPropId } = action.payload;
-      const object = draft.objects[objectId];
-      if (!object || object.locked) return;
+      const { objectId, propertyId } = action.payload;
+      const obj = draft.objects[objectId];
+      if (!obj) return;
 
-      const propertyId = coerceToScale(coerceToPosition(rawPropId));
-
-      let lt = draft.timeline.layers[objectId];
-      if (!lt) {
-        lt = draft.timeline.layers[objectId] = {
+      let layer = draft.timeline.layers[objectId];
+      if (!layer) {
+        layer = {
           objectId,
-          properties: [],
           clip: { id: objectId, segments: [{ startMs: 0, endMs: draft.timeline.durationMs }] },
-          expanded: true,
+          properties: [],
+          expanded: true
         };
+        draft.timeline.layers[objectId] = layer;
       }
 
-      const isCurrentlyAnimated = lt.properties.some(p => p.id === propertyId);
+      const existingTrackIndex = layer.properties?.findIndex(p => p.id === propertyId);
 
-      if (isCurrentlyAnimated) {
-        lt.properties = lt.properties.filter(p => p.id !== propertyId);
-      } else {
-        if (!lt.properties.some(p => p.id === propertyId)) {
-          lt.properties.push({ id: propertyId, keyframes: [] });
-        }
-        lt.expanded = true;
+      if (existingTrackIndex !== undefined && existingTrackIndex !== -1) {
+        // Remove track
+        layer.properties!.splice(existingTrackIndex, 1);
+        return;
       }
 
-      if (lt.properties.length === 0) {
-        lt.expanded = false;
+      // Add track
+      let initialValue: any = (obj as any)[propertyId];
+
+      // Special handling for Bend It "virtual" properties
+      if (propertyId === 'bendAmount') {
+        const bend = (obj as any).bend;
+        // Default to current value if exists, else 0 (radians) because runtime uses radians for theta
+        // But wait, the slider sends DEGREES.
+        // Let's check runtime.ts again.
+        // runtime.ts: patch.bend = { theta: val }
+        // bend-math.ts: theta is radians.
+        // BendItControls: displays degrees, converts to/from radians for onChange.
+        // So the OBJECT state (obj.bend.theta) is RADIANS.
+        // The KEYFRAME should store RADIANS to match the object state.
+        // The SLIDER input reads the keyframe value. If the keyframe value is radians, the slider needs to handle it?
+        // Let's check SliderInput usage in BendItControls.
+        // It does `value={Math.round(bendDeg)}`. params.theta is radians.
+        // If animation is active, `getValueAtTime` returns the interpolated value.
+        // If that value is plugged into `params`, it flows into `BendItControls`.
+        // So keyframes MUST be RADIANS.
+        initialValue = bend?.theta ?? 0;
+      } else if (propertyId === 'bendStart') {
+        const bend = (obj as any).bend;
+        initialValue = bend?.start ?? { x: 0, y: 0 };
+      } else if (propertyId === 'bendEnd') {
+        const bend = (obj as any).bend;
+        initialValue = bend?.end ?? { x: 0, y: 0 };
       }
+
+      if (initialValue === undefined && propertyId === 'opacity') initialValue = 1;
+      if (initialValue === undefined && (propertyId === 'scaleX' || propertyId === 'scaleY')) initialValue = 1;
+      if (initialValue === undefined) initialValue = 0;
+
+      const newTrack: PropertyTrack = {
+        id: propertyId,
+        keyframes: [
+          {
+            id: nanoid(),
+            timeMs: draft.timeline.playheadMs,
+            value: initialValue,
+            easing: 'linear'
+          }
+        ]
+      };
+
+      if (!layer.properties) layer.properties = [];
+      layer.properties.push(newTrack);
+      layer.expanded = true;
       timelineRowsChanged();
       return;
     }
@@ -1149,6 +1189,11 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
     case 'ADD_KEYFRAME_TO_PROPERTY': {
       const { objectId, propertyId: rawPropId, timeMs: explicitTimeMs, value: explicitValue, startValue } = action.payload;
       const object = draft.objects[objectId];
+
+      // COHERENCE CHECK: Ensure we don't accidentally animate Position if rawPropId is unrelated
+      if (coerceToPosition(rawPropId) === 'position' && rawPropId !== 'position' && rawPropId !== 'x' && rawPropId !== 'y') {
+        return;
+      }
       if (!object) return;
 
       const propertyId = coerceToScale(coerceToPosition(rawPropId));
@@ -1179,6 +1224,15 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
           valueToUse = { x: object.x, y: object.y };
         } else if (propertyId === 'scale') {
           valueToUse = { x: object.scaleX ?? 1, y: object.scaleY ?? 1 };
+        } else if (propertyId === 'bendAmount') {
+          const bend = (object as any).bend;
+          valueToUse = bend?.theta ?? 0;
+        } else if (propertyId === 'bendStart') {
+          const bend = (object as any).bend;
+          valueToUse = bend?.start ?? { x: 0, y: 0 };
+        } else if (propertyId === 'bendEnd') {
+          const bend = (object as any).bend;
+          valueToUse = bend?.end ?? { x: 0, y: 0 };
         } else {
           valueToUse = (object as any)[propertyId];
         }
@@ -1334,6 +1388,25 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       const keyframe = propTrack.keyframes.find((k: Keyframe) => k.id === keyframeId);
       if (keyframe) {
         keyframe.interpolation = interpolationType;
+
+        // Set appropriate controlPoints for each interpolation type
+        // so the speed graph and animation engine use correct curves
+        switch (interpolationType) {
+          case 'ease':
+            keyframe.controlPoints = { x1: 0.42, y1: 0, x2: 0.58, y2: 1 }; // Symmetric ease-in-out (bell curve)
+            break;
+          case 'ease-in':
+            keyframe.controlPoints = { x1: 0.42, y1: 0, x2: 1.0, y2: 1.0 };
+            break;
+          case 'ease-out':
+            keyframe.controlPoints = { x1: 0, y1: 0, x2: 0.58, y2: 1.0 };
+            break;
+          case 'linear':
+          case 'hold':
+            keyframe.controlPoints = undefined;
+            break;
+          // 'bezier' keeps existing controlPoints untouched
+        }
       }
       break;
     }
@@ -1546,10 +1619,37 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
               const propsToUpdate = Object.keys(updates) as PropertyId[];
               for (const prop of propsToUpdate) {
                 const animProp = coerceToScale(coerceToPosition(prop));
+
+                // Special handling for Bend It properties
+                if (animProp === 'bend' as any) {
+                  const bendUpdate = (updates as any).bend;
+                  if (bendUpdate) {
+                    // Check for bendAmount (angle)
+                    const amountTrack = layerTrack.properties.find(p => p.id === 'bendAmount');
+                    if (amountTrack && bendUpdate.theta !== undefined) {
+                      upsertAt(amountTrack, t, bendUpdate.theta);
+                    }
+                    // Check for bendStart
+                    const startTrack = layerTrack.properties.find(p => p.id === 'bendStart');
+                    if (startTrack && bendUpdate.start !== undefined) {
+                      upsertAt(startTrack, t, bendUpdate.start);
+                    }
+                    // Check for bendEnd
+                    const endTrack = layerTrack.properties.find(p => p.id === 'bendEnd');
+                    if (endTrack && bendUpdate.end !== undefined) {
+                      upsertAt(endTrack, t, bendUpdate.end);
+                    }
+                  }
+                  continue;
+                }
+
                 const track = layerTrack.properties.find(p => p.id === animProp);
                 if (!track) continue;
 
                 if (animProp === 'position') {
+                  // Defensive check: ensure we are actually updating position-related properties
+                  if (prop !== 'x' && prop !== 'y' && prop !== 'position') continue;
+
                   if (isScalingLike) continue;
 
                   const newObjState = { ...obj, ...updates };
@@ -2554,11 +2654,8 @@ export function EditorProvider({ children, projectId }: { children: ReactNode, p
     pendingBatches: {},
   });
 
-  const db = useFirestore();
   const { user } = useUser();
   const [isLoaded, setIsLoaded] = useState(false);
-  const [projectExistsInCloud, setProjectExistsInCloud] = useState(false);
-  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
 
   const { present, past, future, transientPresent } = history;
   const state = transientPresent ?? present;
@@ -2584,80 +2681,26 @@ export function EditorProvider({ children, projectId }: { children: ReactNode, p
   const zoomActionsRef = useRef<ZoomActions | null>(null);
   const runtimeRef = useRef<AnimeRuntimeApply | null>(null);
 
+  // Load project from localStorage only
   useEffect(() => {
-    if (!projectId || !db) return;
+    if (!projectId) return;
 
-    const loadProject = async () => {
-      setIsLoaded(false);
-
-      const localBackupJson = localStorage.getItem(`vectoria-editor-state-${projectId}`);
-      let localState: EditorState | null = null;
-      if (localBackupJson) {
-        try {
-          localState = JSON.parse(localBackupJson);
-        } catch {
-          // Ignore invalid local state
-        }
-      }
-
-      const docRef = doc(db, 'projects', projectId, 'docs', 'main');
+    setIsLoaded(false);
+    const localBackupJson = localStorage.getItem(`vectoria-editor-state-${projectId}`);
+    if (localBackupJson) {
       try {
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists() && docSnap.data().snapshot) {
-          const cloudState = JSON.parse(docSnap.data().snapshot);
-          dispatch({ type: 'LOAD_STATE', payload: cloudState });
-          // Sync local storage with the cloud version upon successful load
-          localStorage.setItem(`vectoria-editor-state-${projectId}`, docSnap.data().snapshot);
-          // Mark project as existing in cloud - safe to save
-          setProjectExistsInCloud(true);
-        } else if (localState) {
-          dispatch({ type: 'LOAD_STATE', payload: localState });
-        } else {
-          dispatch({ type: 'LOAD_STATE', payload: initialState });
-        }
-      } catch (error: any) {
-        // Detect permission errors - project doesn't exist or user has no access
-        const isPermissionError = error?.code === 'permission-denied' ||
-          error?.message?.includes('Missing or insufficient permissions');
-
-        if (isPermissionError) {
-          // Don't log as error - this is expected for non-existent projects
-          console.warn(`[Vectoria] Project "${projectId}" not accessible. Loaded empty project.`);
-          setProjectLoadError('Project not found or you don\'t have access.');
-        } else {
-          console.error("Failed to load from Firestore:", error);
-        }
-
-        // Fall back to local state or empty project
-        if (localState) {
-          dispatch({ type: 'LOAD_STATE', payload: localState });
-        } else {
-          dispatch({ type: 'LOAD_STATE', payload: initialState });
-        }
-      } finally {
-        setIsLoaded(true);
+        const localState = JSON.parse(localBackupJson);
+        dispatch({ type: 'LOAD_STATE', payload: localState });
+      } catch {
+        dispatch({ type: 'LOAD_STATE', payload: initialState });
       }
-    };
+    } else {
+      dispatch({ type: 'LOAD_STATE', payload: initialState });
+    }
+    setIsLoaded(true);
+  }, [projectId]);
 
-    loadProject();
-  }, [projectId, db]);
-
-  const saveProjectToCloud = useCallback(() => {
-    // Only save if: loaded, project ID exists, user is authenticated, AND project exists in cloud
-    if (!hasLoadedRef.current || !projectId || !user || !projectExistsInCloud) return;
-
-    const currentState = stateRef.current;
-    const stateToSave = JSON.stringify(currentState);
-    const docRef = doc(db, 'projects', projectId, 'docs', 'main');
-    const data = {
-      snapshot: stateToSave,
-      updatedAt: serverTimestamp(),
-      schemaVersion: 1
-    };
-    setDocumentNonBlocking(docRef, data, { merge: true });
-  }, [projectId, user, db, projectExistsInCloud]);
-
-  // Local storage backup
+  // Local storage save (debounced)
   useEffect(() => {
     if (!isLoaded || !projectId) return;
     const handler = setTimeout(() => {
@@ -2667,35 +2710,9 @@ export function EditorProvider({ children, projectId }: { children: ReactNode, p
       } catch (error) {
         console.error("Failed to save to local storage:", error);
       }
-    }, 500); // Frequent local saves
+    }, 500);
     return () => clearTimeout(handler);
   }, [state, projectId, isLoaded]);
-
-  // Cloud save (less frequent)
-  useEffect(() => {
-    if (!isLoaded) return;
-    const handler = setTimeout(() => {
-      saveProjectToCloud();
-    }, 1500);
-    return () => clearTimeout(handler);
-  }, [state, saveProjectToCloud, isLoaded]);
-
-  // Save on exit
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        saveProjectToCloud();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [saveProjectToCloud]);
-
-  useEffect(() => {
-    return () => {
-      saveProjectToCloud();
-    };
-  }, [saveProjectToCloud]);
 
   useEffect(() => {
     runtimeRef.current = new AnimeRuntimeApply({

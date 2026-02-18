@@ -52,12 +52,11 @@ export type Fill = string | LinearGradientFill | RadialGradientFill;
 
 // ─── Effects System ─────────────────────────────────────────────────
 export interface BendItEffect {
-  type: 'bend-it';
-  id: string;
   enabled: boolean;
-  bendDegrees: number;
+  // BendParams properties
   start: { x: number; y: number };
   end: { x: number; y: number };
+  theta: number; // radians
   prestart: 'none' | 'static' | 'bend' | 'mirror';
   postEnd: 'legal' | 'extended';
 }
@@ -82,6 +81,7 @@ export interface SvgBase {
   visible?: boolean;
   locked?: boolean;
   opacity?: number;
+  bend?: BendItEffect;
 }
 
 export interface RectangleObject extends SvgBase {
@@ -233,7 +233,7 @@ export type Clip = {
 };
 
 
-export type PropertyId = 'x' | 'y' | 'position' | 'rotation' | 'scaleX' | 'scaleY' | 'scale' | 'opacity' | 'fill' | 'stroke' | 'pathD' | 'width' | 'height' | 'rx' | 'ry' | 'outerRadius' | 'innerRadius' | 'radius' | 'sides' | 'points' | 'fontSize' | 'corners' | 'strokeWidth' | 'strokeLineCap';
+export type PropertyId = 'x' | 'y' | 'position' | 'rotation' | 'scaleX' | 'scaleY' | 'scale' | 'opacity' | 'fill' | 'stroke' | 'pathD' | 'width' | 'height' | 'rx' | 'ry' | 'outerRadius' | 'innerRadius' | 'radius' | 'sides' | 'points' | 'fontSize' | 'corners' | 'strokeWidth' | 'strokeLineCap' | 'bendAmount' | 'bendStart' | 'bendEnd';
 
 export interface PropertyTrack {
   id: PropertyId;
