@@ -134,9 +134,11 @@ export const TrackRow = memo(({
             <div
               data-clip-grip
               data-nomarquee
-              className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/10 rounded-l-md transition-colors"
+              className="absolute left-0 top-0 bottom-0 w-4 -translate-x-1/2 cursor-ew-resize group/grip z-20 flex items-center justify-center transition-colors"
               onPointerDown={(e) => { e.stopPropagation(); onBeginResizeStart?.(clip.id, e); }}
-            />
+            >
+              <div className="w-1 h-3 bg-white rounded-full opacity-0 group-hover/grip:opacity-100 transition-opacity shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
+            </div>
 
             {/* Label (Optional, good for debugging/UX) */}
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-medium text-white/70 pointer-events-none truncate px-1" style={{ maxWidth: w - 16 }}>
@@ -147,9 +149,11 @@ export const TrackRow = memo(({
             <div
               data-clip-grip
               data-nomarquee
-              className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/10 rounded-r-md transition-colors"
+              className="absolute right-0 top-0 bottom-0 w-4 translate-x-1/2 cursor-ew-resize group/grip z-20 flex items-center justify-center transition-colors"
               onPointerDown={(e) => { e.stopPropagation(); onBeginResizeEnd?.(clip.id, e); }}
-            />
+            >
+              <div className="w-1 h-3 bg-white rounded-full opacity-0 group-hover/grip:opacity-100 transition-opacity shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
+            </div>
           </div>
         )
       })}

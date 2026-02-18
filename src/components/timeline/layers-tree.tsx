@@ -385,8 +385,6 @@ const PropertyRowUI = ({
         className={cn(
           "h-full w-full",
           "grid grid-cols-[1fr_auto_auto] items-center gap-2", // Adjusted grid
-          "rounded-md",
-          "rounded-md",
           "bg-transparent hover:bg-accent/30",
           isSelected && "bg-primary/10",
           "px-2",
@@ -591,7 +589,7 @@ const LayerRowUI = ({
         <div
           id={`timeline-layer-row-${objectId}`}
           className={cn(
-            "relative flex items-center text-sm pr-2 rounded-md group hover:bg-accent/50",
+            "relative flex items-center text-sm pr-2 group hover:bg-accent/50",
             isSelected && !isOverlay && "bg-primary/20 hover:bg-primary/30",
             dropTarget?.id === objectId && dropTarget.type === 'group-reparent' && "ring-1 ring-primary",
             dropTarget?.id === objectId && dropTarget.type === 'reorder-before' && 'drop-indicator-top',
