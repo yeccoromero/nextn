@@ -589,7 +589,7 @@ const LayerRowUI = ({
         <div
           id={`timeline-layer-row-${objectId}`}
           className={cn(
-            "relative flex items-center text-sm pr-2 group hover:bg-accent/50",
+            "relative flex items-center text-sm group hover:bg-accent/50",
             isSelected && !isOverlay && "bg-primary/20 hover:bg-primary/30",
             dropTarget?.id === objectId && dropTarget.type === 'group-reparent' && "ring-1 ring-primary",
             dropTarget?.id === objectId && dropTarget.type === 'reorder-before' && 'drop-indicator-top',
@@ -599,7 +599,7 @@ const LayerRowUI = ({
           onClick={handleSelect}
           onContextMenu={handleContextMenuTrigger}
           onDoubleClick={() => dispatch({ type: 'START_RENAME_LAYER', payload: { id: objectId } })}
-          style={{ paddingLeft: `${8 + level * 16}px`, height: `${rowHeight}px` }}
+          style={{ paddingLeft: `${8 + level * 16}px`, height: `${rowHeight - 2}px`, marginTop: '1px' }}
         >
 
           {/* Label Color Indicator */}
@@ -753,7 +753,7 @@ const LayerRowUI = ({
           {isSelectionVisible ? 'Hide' : 'Show'}
         </ContextMenuItem>
       </ContextMenuContent>
-    </ContextMenu>
+    </ContextMenu >
   );
 };
 

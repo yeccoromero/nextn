@@ -699,7 +699,7 @@ export default function TimelinePanel() {
   return (
     <div
       className="
-        grid h-full w-full
+        grid h-full w-full gap-x-1 bg-black
         [grid-template-columns:var(--layers)_1fr]
         [grid-template-rows:var(--top)_var(--ruler)_1fr]
       "

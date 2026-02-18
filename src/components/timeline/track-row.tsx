@@ -95,7 +95,7 @@ export const TrackRow = memo(({
         "relative w-full select-none transition-colors",
         "cursor-default"
       )}
-      style={{ height: rowHeight }}
+      style={{ height: rowHeight - 2, marginTop: 1 }}
       onPointerDownCapture={handleRowPointerDownCapture}
     // onPointerDown={handleRowPointerDown} // Disable track sliding from empty space to allow marquee
     >
@@ -116,6 +116,7 @@ export const TrackRow = memo(({
             }}
             className={cn(
               "absolute top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing",
+              "overflow-visible", // Ensure handles outside bounds are visible
               "rounded-md shadow-sm backdrop-blur-sm", // Rounded pill shape
               "border border-white/10", // Subtle border
               (clip.selected || isLayerSelected)
@@ -134,10 +135,11 @@ export const TrackRow = memo(({
             <div
               data-clip-grip
               data-nomarquee
-              className="absolute left-0 top-0 bottom-0 w-4 -translate-x-1/2 cursor-ew-resize group/grip z-20 flex items-center justify-center transition-colors"
+              className="absolute left-0 top-0 bottom-0 w-4 -translate-x-1/2 cursor-ew-resize group z-20 flex items-center justify-center transition-colors"
               onPointerDown={(e) => { e.stopPropagation(); onBeginResizeStart?.(clip.id, e); }}
             >
-              <div className="w-1 h-3 bg-white rounded-full opacity-0 group-hover/grip:opacity-100 transition-opacity shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
+              {/* Vertical Line Indicator */}
+              <div className="w-1 h-full bg-primary rounded-sm opacity-0 group-hover:opacity-100 transition-opacity shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
             </div>
 
             {/* Label (Optional, good for debugging/UX) */}
@@ -149,10 +151,11 @@ export const TrackRow = memo(({
             <div
               data-clip-grip
               data-nomarquee
-              className="absolute right-0 top-0 bottom-0 w-4 translate-x-1/2 cursor-ew-resize group/grip z-20 flex items-center justify-center transition-colors"
+              className="absolute right-0 top-0 bottom-0 w-4 translate-x-1/2 cursor-ew-resize group z-20 flex items-center justify-center transition-colors"
               onPointerDown={(e) => { e.stopPropagation(); onBeginResizeEnd?.(clip.id, e); }}
             >
-              <div className="w-1 h-3 bg-white rounded-full opacity-0 group-hover/grip:opacity-100 transition-opacity shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
+              {/* Vertical Line Indicator */}
+              <div className="w-1 h-full bg-primary rounded-sm opacity-0 group-hover:opacity-100 transition-opacity shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
             </div>
           </div>
         )
