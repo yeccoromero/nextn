@@ -134,7 +134,6 @@ export const LayerRow = ({ objectId, level, isOverlay }: LayerRowProps) => {
                         id={`layer-row-${objectId}`}
                         onClick={handleSelect}
                         onContextMenu={handleContextMenuTrigger}
-                        onDoubleClick={() => dispatch({ type: 'START_RENAME_LAYER', payload: { id: objectId } })}
                         className={cn(
                             "relative flex items-center text-sm py-0.5 pr-2 rounded-md group hover:bg-accent",
                             isSelected && !isOverlay && "bg-primary/20 hover:bg-primary/30",
@@ -164,13 +163,29 @@ export const LayerRow = ({ objectId, level, isOverlay }: LayerRowProps) => {
                                     type="text"
                                     value={tempName}
                                     onChange={(e) => setTempName(e.target.value)}
-                                    onBlur={handleRename}
+                                    onBlur={(e) => {
+                                        const related = e.relatedTarget as Element | null;
+                                        if (related?.classList.contains('rename-input')) return;
+                                        handleRename();
+                                    }}
                                     onKeyDown={handleKeyDown}
-                                    className="h-6 px-1 py-0 text-xs ml-1"
+                                    className="rename-input h-6 px-1 py-0 text-xs ml-1"
                                     onClick={(e) => e.stopPropagation()}
                                 />
                             ) : (
-                                <span className="truncate">{getDisplayName(object)}</span>
+                                <span
+                                    className="truncate"
+                                    onDoubleClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (!isSelected) {
+                                            dispatch({ type: 'SELECT_OBJECT', payload: { id: objectId, shiftKey: false } });
+                                        }
+                                        dispatch({ type: 'START_RENAME_LAYER', payload: { id: objectId } });
+                                    }}
+                                >
+                                    {getDisplayName(object)}
+                                </span>
                             )}
                         </div>
 

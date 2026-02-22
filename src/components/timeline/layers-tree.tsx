@@ -7,7 +7,7 @@ import { useEditor } from "@/context/editor-context";
 import type { SvgObject, GroupObject, DropTarget, PropertyId, Keyframe as KeyframeType, EditorState, TimelineRow, PropertyTrack, EasingId, KeyValue, LayerTrack } from "@/types/editor";
 import {
   Square, Circle, Star, Type, Hexagon, Pencil, Group, ChevronDown, ChevronRight,
-  Scissors, Copy, ClipboardPaste, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Ungroup, CopyPlus, ArrowLeftRight, ArrowUpDown, Lock, Unlock, Eye, EyeOff, GripVertical, RefreshCw, Diamond
+  Scissors, Copy, ClipboardPaste, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Ungroup, CopyPlus, ArrowLeftRight, ArrowUpDown, Lock, Unlock, Eye, EyeOff, GripVertical, RefreshCw, Diamond, Disc
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, ContextMenuShortcut } from '../ui/context-menu';
@@ -383,14 +383,15 @@ const PropertyRowUI = ({
 
       <div
         className={cn(
-          "h-full w-full",
+          "w-full",
           "grid grid-cols-[1fr_auto_auto] items-center gap-2", // Adjusted grid
-          "bg-transparent hover:bg-accent/30",
-          isSelected && "bg-primary/10",
+          !isSelected && "bg-zinc-800/40 border border-white/5 rounded-sm", // Default background for property rows
+          "hover:bg-zinc-700/50",
+          isSelected && "bg-primary/10 border border-primary/20 rounded-sm",
           "px-2",
           "cursor-pointer"
         )}
-        style={{ paddingLeft: `${padLeft}px` }}
+        style={{ paddingLeft: `${padLeft}px`, height: `${rowHeight - 2}px`, marginTop: '1px' }}
         onClick={(e) => {
           e.stopPropagation();
           dispatch({
@@ -411,6 +412,15 @@ const PropertyRowUI = ({
 
         {/* Keyframe Controls */}
         <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); dispatch({ type: 'TOGGLE_PROPERTY_SOLO', payload: { objectId, propertyId } }); }}
+            className="h-6 w-5 flex items-center justify-center transition-colors hover:text-foreground"
+            title="Solo Property"
+          >
+            <Disc className={cn("h-3.5 w-3.5", propTrack?.soloed ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30 hover:text-muted-foreground/50")} />
+          </button>
+
           <button
             type="button"
             onClick={() => handleJumpKeyframe('prev')}
@@ -568,6 +578,8 @@ const LayerRowUI = ({
     }
   }
 
+  // handleLayerDoubleClick removed, logic moved directly to span
+
   const handleRename = () => {
     dispatch({ type: 'UPDATE_OBJECTS', payload: { ids: [objectId], updates: { name: tempName.trim() } } });
     dispatch({ type: 'FINISH_RENAME_LAYER' });
@@ -589,8 +601,9 @@ const LayerRowUI = ({
         <div
           id={`timeline-layer-row-${objectId}`}
           className={cn(
-            "relative flex items-center text-sm group hover:bg-accent/50",
-            isSelected && !isOverlay && "bg-primary/20 hover:bg-primary/30",
+            "relative flex items-center text-sm group hover:bg-zinc-700/50",
+            !isSelected && !isOverlay && "bg-[#222225]/55 border border-white/5 rounded-sm", // Default background to show gaps
+            isSelected && !isOverlay && "bg-primary/20 hover:bg-primary/30 border border-primary/20 rounded-sm",
             dropTarget?.id === objectId && dropTarget.type === 'group-reparent' && "ring-1 ring-primary",
             dropTarget?.id === objectId && dropTarget.type === 'reorder-before' && 'drop-indicator-top',
             dropTarget?.id === objectId && dropTarget.type === 'reorder-after' && 'drop-indicator-bottom',
@@ -598,7 +611,6 @@ const LayerRowUI = ({
           )}
           onClick={handleSelect}
           onContextMenu={handleContextMenuTrigger}
-          onDoubleClick={() => dispatch({ type: 'START_RENAME_LAYER', payload: { id: objectId } })}
           style={{ paddingLeft: `${8 + level * 16}px`, height: `${rowHeight - 2}px`, marginTop: '1px' }}
         >
 
@@ -637,7 +649,7 @@ const LayerRowUI = ({
               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </Button>
           )}
-          <div className="flex items-center truncate gap-[10px]">
+          <div className="flex items-center truncate gap-[10px] flex-1 min-w-0">
             <div className="shrink-0">{getIcon(object.type)}</div>
             {editingLayerId === objectId ? (
               <Input
@@ -645,18 +657,39 @@ const LayerRowUI = ({
                 type="text"
                 value={tempName}
                 onChange={(e) => setTempName(e.target.value)}
-                onBlur={handleRename}
+                onBlur={(e) => {
+                  const related = e.relatedTarget as Element | null;
+                  if (related?.classList.contains('rename-input')) return;
+                  handleRename();
+                }}
                 onKeyDown={handleKeyDown}
-                className="h-6 px-1 py-0 text-xs bg-background/50"
+                className="rename-input h-6 px-1 py-0 text-xs bg-background/50 w-full"
                 onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span className="truncate text-xs">{getDisplayName(object)}</span>
+              <span
+                className="truncate text-xs cursor-text w-full"
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isSelected) {
+                    dispatch({ type: 'SELECT_OBJECT', payload: { id: objectId, shiftKey: false } });
+                  }
+                  setTimeout(() => {
+                    dispatch({ type: 'START_RENAME_LAYER', payload: { id: objectId } });
+                  }, 0);
+                }}
+              >
+                {getDisplayName(object)}
+              </span>
             )}
           </div>
-          <div className="flex-1" />
 
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); dispatch({ type: 'TOGGLE_LAYER_SOLO', payload: { objectId } }); }}>
+              <Disc className={cn("h-4 w-4", layerTrack?.soloed ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/50")} />
+            </Button>
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); dispatch({ type: 'TOGGLE_LOCK', payload: { ids: [objectId] } }); }}>
               {object.locked ? <Lock className="h-4 w-4 text-muted-foreground" /> : <Unlock className="h-4 w-4 text-muted-foreground/50" />}
             </Button>
