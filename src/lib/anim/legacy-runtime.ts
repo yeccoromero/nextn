@@ -116,26 +116,39 @@ export function easeValueLegacy(easing: EasingId | undefined, t: number): number
             // to guarantee it operates perfectly on our `t` interval (where t = 0..1 representing progress of duration).
 
             if (easingName.startsWith('spring(')) {
+                // Parse parameters or use defaults: mass, stiffness, damping, velocity
                 const params = easingName.match(/spring\(([^)]+)\)/)?.[1].split(',').map(parseFloat) || [1, 100, 10, 0];
                 const [mass = 1, stiffness = 100, damping = 10, velocity = 0] = params;
+
+                // We use a robust, time-normalized spring formula.
+                // t is strictly [0, 1].
                 const w0 = Math.sqrt(stiffness / mass);
                 const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+
+                // Avoid NaN if zeta >= 1 (overdamped/critically damped), wd becomes 0
                 const wd = zeta < 1 ? w0 * Math.sqrt(1 - zeta * zeta) : 0;
                 const b = zeta < 1 ? (zeta * w0 + -velocity) / wd : -velocity + w0;
 
                 animeEasingFn = (t: number) => {
-                    // t goes from 0 to 1 over the clip duration.
-                    // Anime.js spring is usually time-dependent. We will treat t as a normalized time factor.
-                    // To make it behave like a standard easing, we apply the spring formula based on standard time scaling.
-                    // Assuming standard duration of 1000ms for calculation of standard physics
-                    const time = t * 1000;
+                    if (t === 0) return 0;
+                    if (t === 1) return 1;
+
+                    // We scale t to a hypothetical duration to allow the spring to settle.
+                    // Anime typically uses a default or actual duration. We'll use a fixed scale factor
+                    // so the curve looks like a spring within the 0..1 interval.
+                    const time = t * (1000 / w0); // Scale time so the spring finishes its oscillation near t=1
+
                     let value = 1;
                     if (zeta < 1) {
-                        value = 1 - Math.exp(-t * zeta * w0) * (Math.cos(wd * t) + b * Math.sin(wd * t));
+                        // Underdamped
+                        value = 1 - Math.exp(-time * zeta * w0) * (Math.cos(wd * time) + b * Math.sin(wd * time));
                     } else {
-                        value = 1 - Math.exp(-t * w0) * (1 + b * t);
+                        // Critically damped / Overdamped
+                        value = 1 - Math.exp(-time * w0) * (1 + b * time);
                     }
-                    return value;
+
+                    // Failsafe against NaN just in case
+                    return isNaN(value) ? t : value;
                 };
             } else if (easingName.startsWith('elastic(')) {
                 const params = easingName.match(/elastic\(([^)]+)\)/)?.[1].split(',').map(parseFloat) || [1, .5];
