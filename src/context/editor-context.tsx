@@ -1377,6 +1377,21 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       break;
     }
 
+    case 'SET_KEYFRAME_EASING': {
+      const { objectId, propertyId, keyframeId, easing } = action.payload;
+      const layerTrack = draft.timeline.layers[objectId];
+      if (!layerTrack) break;
+
+      const propTrack = layerTrack.properties.find((p: PropertyTrack) => p.id === propertyId);
+      if (!propTrack) break;
+
+      const keyframe = propTrack.keyframes.find((k: Keyframe) => k.id === keyframeId);
+      if (keyframe) {
+        keyframe.easing = easing;
+      }
+      break;
+    }
+
     case 'SET_KEYFRAME_INTERPOLATION': {
       const { objectId, propertyId, keyframeId, interpolationType } = action.payload;
       const layerTrack = draft.timeline.layers[objectId];
@@ -2451,9 +2466,13 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
 
 const MAX_HISTORY = 200;
 
+export const editorReducer = (state: EditorState, action: EditorAction): EditorState => {
+  return produce(state, draft => editorRecipe(draft, action));
+}
+
 const historyReducer = produce((state: History<EditorState>, action: EditorAction) => {
-  const { past, present, future } = state;
   const currentState = state.transientPresent ?? state.present;
+  const { past, present, future } = state;
 
   const commitBatch = (groupId: string) => {
     const batchEntry = state.pendingBatches[groupId];

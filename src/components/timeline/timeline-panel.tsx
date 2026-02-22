@@ -8,7 +8,7 @@ import TracksView from './tracks-view';
 import { useEditor } from '@/context/editor-context';
 import { getMsPerPx, msToX, pxToMs, BASE_PX_PER_SECOND } from '@/lib/anim/utils';
 import { clamp, cn } from '@/lib/utils';
-import { formatTime } from './transport';
+import { formatTime } from '@/lib/anim/time-utils';
 import { PropertyId, InterpolationType } from "@/types/editor";
 import { GripVertical, Sparkles } from 'lucide-react';
 import { TimelineNavigator } from './timeline-navigator';
@@ -54,33 +54,7 @@ function getSelectedTracks(state: any): { objectId: string, track: PropertyTrack
 }
 // End Helper
 
-function Playhead({ panelWidth, leftOffset, originMs, msPerPx }: { panelWidth: number, leftOffset: number, originMs: number, msPerPx: number }) {
-  const { state } = useEditor();
-  const { timeline } = state;
-  const { playheadMs, fps } = timeline;
-
-  if (panelWidth <= 0 || msPerPx <= 0) return null;
-
-  const x = msToX(playheadMs, originMs, msPerPx);
-
-  // Only render if visible
-  if (x < 0 || x > panelWidth) return null;
-
-  const left = Math.round(leftOffset + x) + 0.5;
-
-  return (
-    <div
-      className="pointer-events-none fixed top-0 bottom-0 z-50"
-      style={{ left, top: TOP_SPACER_H }}
-      data-nomarquee
-    >
-      <div className="absolute top-0 left-0 -translate-x-1/2 px-1.5 py-0.5 rounded-sm bg-blue-500 text-white text-[10px] font-mono shadow-md shadow-blue-500/20">
-        {formatTime(playheadMs, fps)}
-      </div>
-      <div className="absolute top-[18px] left-0 w-px h-full bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.5)]" />
-    </div>
-  );
-}
+import { Playhead } from './playhead';
 
 const WorkAreaControls = ({ innerWidth, originMs, msPerPx }: { innerWidth: number, originMs: number, msPerPx: number }) => {
   const { state, dispatch } = useEditor();
@@ -225,12 +199,16 @@ export default function TimelinePanel() {
 
 
 
-  if (!state) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground">Loading Timeline...</div>
-    );
-  }
-  const { timeline } = state;
+  // Mock state for hooks if loading
+  const timeline = state?.timeline || {
+    ui: { zoom: 1, snap: false, snapStepMs: 100 },
+    durationMs: 0,
+    playheadMs: 0,
+    fps: 30,
+    layers: {},
+    selection: { keyIds: [] }
+  } as any;
+
   const msPerPx = getMsPerPx(timeline.ui.zoom);
   const contentWidthPx = Math.max(panelWidth, timeline.durationMs / msPerPx);
 
@@ -250,7 +228,7 @@ export default function TimelinePanel() {
 
     const clamped = clamp(zoomFit, 0.05, 50);
 
-    if (clamped !== timeline.ui.zoom) {
+    if (state && clamped !== timeline.ui.zoom) {
       dispatch({ type: "SET_TIMELINE_ZOOM", payload: clamped });
     }
 
@@ -259,7 +237,7 @@ export default function TimelinePanel() {
 
     setOriginMs(0);
 
-    if (timeline.playheadMs > durationMs) {
+    if (state && timeline.playheadMs > durationMs) {
       dispatch({ type: "SET_TIMELINE_PLAYHEAD", payload: durationMs, transient: true });
       dispatch({ type: "COMMIT_DRAG" });
     }
@@ -289,6 +267,7 @@ export default function TimelinePanel() {
 
         zoomInteractionRef.current = { tCursor, xCursorPx };
 
+        if (!state) return;
         dispatch({ type: 'SET_TIMELINE_ZOOM', payload: clampedZoom });
       }
     };
@@ -300,7 +279,7 @@ export default function TimelinePanel() {
         container.removeEventListener('wheel', handleWheel);
       }
     };
-  }, [timeline.ui.zoom, dispatch]);
+  }, [timeline.ui.zoom, dispatch, state]);
 
   useEffect(() => {
     const container = localTracksContainerRef.current;
@@ -348,6 +327,8 @@ export default function TimelinePanel() {
   // Keyboard shortcuts for keyframe interpolation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!state) return;
+
       // Get selected keyframes
       const selectedKeyIds = timeline.selection?.keyIds;
       if (!selectedKeyIds || selectedKeyIds.length === 0) return;
@@ -391,12 +372,20 @@ export default function TimelinePanel() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [timeline.selection?.keyIds, timeline.layers, dispatch]);
+  }, [timeline.selection?.keyIds, timeline.layers, dispatch, state]);
+
+  if (!state) {
+    return (
+      <div className="p-4 text-sm text-muted-foreground">Loading Timeline...</div>
+    );
+  }
 
   const updatePlayheadFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!rulerContainerRef.current) return;
     const rect = rulerContainerRef.current.getBoundingClientRect();
-    const x = clamp(e.clientX - rect.left, 0, panelWidth);
+    // Compensate for pl-1 (4px) padding
+    const innerLeft = rect.left + 4;
+    const x = clamp(e.clientX - innerLeft, 0, panelWidth);
     let timeMs = pxToMs(x, originMs, msPerPx);
 
     if (state.timeline.ui.snap) {
@@ -411,18 +400,26 @@ export default function TimelinePanel() {
   const handleRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    if (target.closest('[data-workarea-handle]')) return;
+
+    // Safety check: if target is workarea handle, do NOT start ruler scrub
+    if (target.closest('[data-workarea-handle]')) {
+      return;
+    }
 
     if (e.altKey) {
       if (timeline.workArea) {
         dispatch({ type: 'SET_WORK_AREA', payload: null });
       } else {
         const rect = e.currentTarget.getBoundingClientRect();
-        const startMs = pxToMs(e.clientX - rect.left, originMs, msPerPx);
+        const innerLeft = rect.left + 4;
+        const startMs = pxToMs(e.clientX - innerLeft, originMs, msPerPx);
         dispatch({ type: 'SET_WORK_AREA', payload: { startMs, endMs: startMs } });
       }
       return;
     }
+
+    // Stop propagation to prevent parents (if any) from acting
+    e.stopPropagation();
 
     dispatch({ type: 'SET_TIMELINE_PLAYING', payload: false });
     scrubRef.current = true;
@@ -454,15 +451,19 @@ export default function TimelinePanel() {
 
     const el = e.target as HTMLElement;
     if (el.closest('[data-nomarquee]')) return;
-    if (!e.shiftKey) dispatch({ type: 'CLEAR_KEYFRAME_SELECTION' });
+    if (!e.shiftKey) {
+      dispatch({ type: 'CLEAR_KEYFRAME_SELECTION' });
+      dispatch({ type: 'CLEAR_SELECTION' });
+    }
 
     const container = e.currentTarget;
     const cRect = container.getBoundingClientRect();
+    const innerLeft = cRect.left + 4;
     const scrollX = container.scrollLeft;
     const scrollY = container.scrollTop;
 
     marqueeStartRef.current = {
-      x: e.clientX - cRect.left + scrollX,
+      x: e.clientX - innerLeft + scrollX,
       y: e.clientY - cRect.top + scrollY,
     };
 
@@ -474,10 +475,11 @@ export default function TimelinePanel() {
     if (!marqueeStartRef.current) return;
     const container = e.currentTarget;
     const cRect = container.getBoundingClientRect();
+    const innerLeft = cRect.left + 4;
     const scrollX = container.scrollLeft;
     const scrollY = container.scrollTop;
 
-    const x = e.clientX - cRect.left + scrollX;
+    const x = e.clientX - innerLeft + scrollX;
     const y = e.clientY - cRect.top + scrollY;
 
     if (marqueeRafRef.current) {
@@ -516,7 +518,8 @@ export default function TimelinePanel() {
       bottom: rectLocal.y - scrollY + cRect.top + rectLocal.height,
     };
 
-    const selected: { objectId: string; propertyId: PropertyId; keyframeId: string }[] = [];
+    const selectedKeys: { objectId: string; propertyId: PropertyId; keyframeId: string }[] = [];
+    const selectedObjects: string[] = [];
 
     // Performance: Calculate selection mathematically based on state instead of O(N) DOM queries
     if (state.timelineRows) {
@@ -533,6 +536,23 @@ export default function TimelinePanel() {
         // Check Y Overlap with marquee
         if (rowBottom < rectLocal.y || rowTop > rectLocal.y + rectLocal.height) {
           continue;
+        }
+
+        if (row.kind === 'header') {
+          const layer = state.timeline.layers[row.objectId];
+          if (!layer || !layer.clip) continue;
+
+          for (const seg of layer.clip.segments) {
+            const startX = msToX(seg.startMs, originMs, msPerPx);
+            const endX = msToX(seg.endMs, originMs, msPerPx);
+
+            // Check X overlap
+            const overlaps = !(endX < rectLocal.x || startX > rectLocal.x + rectLocal.width);
+            if (overlaps) {
+              selectedObjects.push(row.objectId);
+              break;
+            }
+          }
         }
 
         if (row.kind === 'track') {
@@ -564,7 +584,7 @@ export default function TimelinePanel() {
               const overlaps = !(kfRight < rectLocal.x || kfLeft > selRight);
 
               if (overlaps) {
-                selected.push({ objectId: row.objectId, propertyId: row.propertyId, keyframeId: kf.id });
+                selectedKeys.push({ objectId: row.objectId, propertyId: row.propertyId, keyframeId: kf.id });
               }
             }
           }
@@ -572,7 +592,13 @@ export default function TimelinePanel() {
       }
     }
 
-    dispatch({ type: 'SELECT_KEYFRAMES_IN_RECT', payload: { keys: selected, additive: e.shiftKey } });
+    if (selectedKeys.length > 0) {
+      dispatch({ type: 'SELECT_KEYFRAMES_IN_RECT', payload: { keys: selectedKeys, additive: e.shiftKey } });
+    }
+
+    if (selectedObjects.length > 0) {
+      dispatch({ type: 'SELECT_MULTIPLE_OBJECTS', payload: { ids: selectedObjects, shiftKey: e.shiftKey } });
+    }
   };
 
   const handleBoundsChange = ({ startMs, endMs }: { startMs: number, endMs: number }) => {
@@ -691,6 +717,16 @@ export default function TimelinePanel() {
             interpolationType: newInterpolation
           }
         });
+
+        dispatch({
+          type: 'SET_KEYFRAME_EASING',
+          payload: {
+            objectId,
+            propertyId: track.id,
+            keyframeId: kf.id,
+            easing: preset.id
+          }
+        });
       });
     });
     setShowPresetPicker(false);
@@ -699,7 +735,7 @@ export default function TimelinePanel() {
   return (
     <div
       className="
-        grid h-full w-full gap-x-1 bg-black
+        grid h-full w-full bg-background
         [grid-template-columns:var(--layers)_1fr]
         [grid-template-rows:var(--top)_var(--ruler)_1fr]
       "
@@ -711,7 +747,7 @@ export default function TimelinePanel() {
       }}
     >
       {/* Fila 1 (Top spacer) */}
-      <div className="col-[1] row-[1] border-r bg-background/70 flex items-center px-2 text-xs text-muted-foreground gap-2">
+      <div className="col-[1] row-[1] border-r bg-background/80 backdrop-blur-sm flex items-center px-2 text-xs text-muted-foreground gap-2 z-20">
         <span className="font-semibold">Layers</span>
         <div className="flex bg-muted rounded p-0.5 ml-auto">
           <button
@@ -760,7 +796,7 @@ export default function TimelinePanel() {
         </div>
 
       </div>
-      <div className="col-[2] row-[1] bg-background/70 flex items-center justify-end px-3 gap-2">
+      <div className="col-[2] row-[1] bg-background/80 backdrop-blur-sm flex items-center justify-end px-3 relative z-50">
         <TimelineNavigator
           durationMs={timeline.durationMs}
           viewStartMs={originMs}
@@ -770,11 +806,11 @@ export default function TimelinePanel() {
       </div>
 
       {/* Fila 2 (Ruler) */}
-      <div className="col-[1] row-[2] border-r bg-background/70" />
+      <div className="col-[1] row-[2] bg-background/80 backdrop-blur-sm border-r border-b border-white/5 z-20" />
       <div
         ref={rulerContainerRef}
         data-ruler
-        className="col-[2] row-[2] relative overflow-x-hidden overflow-y-hidden bg-background/70 cursor-ew-resize hide-scrollbar"
+        className="col-[2] row-[2] relative overflow-x-hidden overflow-y-hidden bg-background/50 cursor-ew-resize hide-scrollbar z-10 pl-1 pr-1"
         onPointerDown={handleRulerPointerDown}
         onPointerMove={handleRulerPointerMove}
         onPointerUp={handleRulerPointerUp}
@@ -787,12 +823,12 @@ export default function TimelinePanel() {
       </div>
 
       {/* Fila 3 (Contenido) */}
-      <div ref={layersScrollRef} className="col-[1] row-[3] overflow-y-auto overflow-x-hidden border-r bg-background relative hide-scrollbar">
+      <div ref={layersScrollRef} className="col-[1] row-[3] overflow-y-auto overflow-x-hidden border-r border-border bg-background relative hide-scrollbar">
         <LayersTree scrollRef={layersScrollRef} />
       </div>
       <div
         ref={localTracksContainerRef}
-        className="col-[2] row-[3] overflow-auto relative touch-none hide-scrollbar bg-zinc-900/30"
+        className="col-[2] row-[3] overflow-auto relative touch-none hide-scrollbar bg-background pl-1 pr-1"
         onPointerDown={handleTracksPointerDown}
         onPointerMove={handleTracksPointerMove}
         onPointerUp={handleTracksPointerUp}
@@ -832,7 +868,30 @@ export default function TimelinePanel() {
       </div>
 
       {rulerContainerRef.current && (
-        <Playhead panelWidth={panelWidth} leftOffset={rulerContainerRef.current.getBoundingClientRect().left} originMs={originMs} msPerPx={msPerPx} />
+        <Playhead
+          panelWidth={panelWidth}
+          leftOffset={rulerContainerRef.current.getBoundingClientRect().left + 4}
+          originMs={originMs}
+          msPerPx={msPerPx}
+          onPointerDown={(e) => {
+            e.stopPropagation(); // Crucial: Stop triggering WorkArea/Ruler
+            if (e.button !== 0) return;
+            dispatch({ type: 'SET_TIMELINE_PLAYING', payload: false });
+            scrubRef.current = true;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            updatePlayheadFromEvent(e);
+          }}
+          onPointerMove={(e) => {
+            if (!scrubRef.current) return;
+            updatePlayheadFromEvent(e);
+          }}
+          onPointerUp={(e) => {
+            if (!scrubRef.current) return;
+            scrubRef.current = false;
+            e.currentTarget.releasePointerCapture(e.pointerId);
+            dispatch({ type: 'COMMIT_DRAG' });
+          }}
+        />
       )}
 
       {contextMenu && (

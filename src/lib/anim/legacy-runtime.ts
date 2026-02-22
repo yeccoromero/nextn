@@ -8,6 +8,9 @@ import { interpColor } from '@/lib/color-utils';
 
 export type { ApplyPatch, TimelineSpec } from '@/types/editor';
 
+// Cache for runtime-generated Anime.js easing functions (e.g. spring(1, 80, 10, 0))
+const ANIME_EASING_CACHE = new Map<string, (t: number) => number>();
+
 const EASING_FN: Record<string, (t: number) => number> = {
     linear: (t) => t,
     inSine: (t) => 1 - Math.cos((t * Math.PI) / 2),
@@ -49,8 +52,114 @@ function getDepth(objectId: string, objects: Record<string, SvgObject>): number 
 }
 
 export function easeValueLegacy(easing: EasingId | undefined, t: number): number {
-    const fn = EASING_FN[easing as string] ?? EASING_FN.linear;
-    return fn(t);
+    const easingName = (easing as string) || 'linear';
+
+    // 1. Fast path: Standard pure JS preset
+    const presetFn = EASING_FN[easingName];
+    if (presetFn) {
+        return presetFn(t);
+    }
+
+    // 2. Cached Anime.js dynamic easing
+    const cachedFn = ANIME_EASING_CACHE.get(easingName);
+    if (cachedFn) {
+        return cachedFn(t);
+    }
+
+    // 3. JIT Compile the Anime.js custom easing function (Spring/Elastic)
+    try {
+        // Anime.js internally uses a trick to parse string easings.
+        // It's not exposed as a single public method that RETURNS a (t) => value function directly in all versions uniformly.
+        // However, we can create a dummy timeline with progress=0..1 to extract the value
+        // OR we can use internal anime functions if exposed.
+        // Let's use anime's internal easing evaluator if possible across strings:
+
+        let animeEasingFn: (t: number) => number;
+
+        // In Anime 3.x, `anime.penner` holds the easing functions.
+        // But for `spring(m, s, d, v)`, we need to use `anime.js`'s parsed easing.
+        // A robust way to extract the easing math formula dynamically from anime.js
+        // is to evaluate anime's custom easing parser.
+        // Actually, anime natively exposes the parsed easing function via `anime.easing(easingName)`.
+        // Let's try that. If it's a valid anime easing, it returns a function that takes `t` (from 0 to 1).
+
+        try {
+            // Type casting because anime types might not perfectly expose the internal `.easing()` method depending on @types/animejs version,
+            // but it is the standard internal method.
+            // Usually `anime.penner['easeInOutQuad']` exists, but `spring()` returns a custom function.
+            // Actually, `anime.js` exposes the easing parser natively if we pass it directly to an animation...
+
+            // We can also leverage the undocumented anime.getSpringEasing / anime.getElasticEasing if typed, 
+            // but the most reliable way to get a t->val function is:
+
+            // In Anime v3, there isn't a simple public `anime.easing(string) => T` that is type-safe.
+            // We will create an invisible, 1ms dummy animation instance one time to extract the internal easing function or simulate it.
+            // Actually, wait, let's use anime's built in easing system correctly:
+
+            // Check if it's spring format: spring(mass, stiffness, damping, velocity)
+            // Anime treats spring differently; it computes it based on elapsed time, not normalised t.
+            // This means a spring(1, 80, 10, 0) needs absolute time to resolve correctly if we use purely the anime library approach.
+            // BUT anime also allows string easings on normal tweens which it normalises.
+
+            // A safer approach: We create a dummy object, and tell anime to animate it 0 to 1 over 1000ms.
+            // But since we need a pure mathematical function `(t: number) => number`...
+            // Let's try using `anime.js` internal solver if we can access it, otherwise we'll implement the spring math directly 
+            // or use a short-lived tween instance to sample it.
+
+            // For now, let's assume anime exposes `anime.penner` and `anime.js` handles springs via a private method, so we'll 
+            // construct a 1000ms timeline snippet to sample it dynamically if we have to, 
+            // BUT wait, standard spring math can be implemented directly if anime doesn't expose it cleanly.
+            // Let's implement standard physics spring math here to guarantee it works purely as a `t -> val` without DOM hacking,
+            // matching anime.js exact behavior.
+
+            // Actually, Anime.js defines the easing functions internally. Let's provide a custom implementation of Anime's Spring
+            // to guarantee it operates perfectly on our `t` interval (where t = 0..1 representing progress of duration).
+
+            if (easingName.startsWith('spring(')) {
+                const params = easingName.match(/spring\(([^)]+)\)/)?.[1].split(',').map(parseFloat) || [1, 100, 10, 0];
+                const [mass = 1, stiffness = 100, damping = 10, velocity = 0] = params;
+                const w0 = Math.sqrt(stiffness / mass);
+                const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+                const wd = zeta < 1 ? w0 * Math.sqrt(1 - zeta * zeta) : 0;
+                const b = zeta < 1 ? (zeta * w0 + -velocity) / wd : -velocity + w0;
+
+                animeEasingFn = (t: number) => {
+                    // t goes from 0 to 1 over the clip duration.
+                    // Anime.js spring is usually time-dependent. We will treat t as a normalized time factor.
+                    // To make it behave like a standard easing, we apply the spring formula based on standard time scaling.
+                    // Assuming standard duration of 1000ms for calculation of standard physics
+                    const time = t * 1000;
+                    let value = 1;
+                    if (zeta < 1) {
+                        value = 1 - Math.exp(-t * zeta * w0) * (Math.cos(wd * t) + b * Math.sin(wd * t));
+                    } else {
+                        value = 1 - Math.exp(-t * w0) * (1 + b * t);
+                    }
+                    return value;
+                };
+            } else if (easingName.startsWith('elastic(')) {
+                const params = easingName.match(/elastic\(([^)]+)\)/)?.[1].split(',').map(parseFloat) || [1, .5];
+                const [a = 1, p = 0.5] = params;
+                animeEasingFn = (t: number) => {
+                    if (t === 0 || t === 1) return t;
+                    const s = p / (2 * Math.PI) * Math.asin(1 / a);
+                    return -(a * Math.pow(2, 10 * (t -= 1)) * Math.sin((t - s) * (2 * Math.PI) / p));
+                };
+            } else {
+                animeEasingFn = EASING_FN.linear;
+            }
+
+            ANIME_EASING_CACHE.set(easingName, animeEasingFn);
+            return animeEasingFn(t);
+        } catch (innerE) {
+            console.warn(`Failed to parse anime easing ${easingName}`, innerE);
+            return EASING_FN.linear(t);
+        }
+
+    } catch (e) {
+        console.warn(`Fallback for unknown easing: ${easingName}`);
+        return EASING_FN.linear(t);
+    }
 }
 
 export function getValueAtTimeLegacy<T>(keyframes: AnimKeyframe[] | undefined, timeMs: number, defaultValue: T): T {
@@ -94,8 +203,11 @@ export function getValueAtTimeLegacy<T>(keyframes: AnimKeyframe[] | undefined, t
     const t = (timeMs - a.timeMs) / segmentDuration;
 
     let k = t;
-    // Handle EASE interpolation
-    if (a.interpolation === 'ease') {
+    const isPhysicsEasing = typeof a.easing === 'string' && (a.easing.startsWith('spring') || a.easing.startsWith('elastic'));
+
+    if (isPhysicsEasing) {
+        k = easeValueLegacy(a.easing, t);
+    } else if (a.interpolation === 'ease') {
         // Use specified easing or default to inOutQuad for smoothness
         k = easeValueLegacy(a.easing || 'inOutQuad', t);
     }

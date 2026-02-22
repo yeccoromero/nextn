@@ -4,7 +4,7 @@
 
 import type { Patch } from 'immer';
 
-export type EasingId = 'linear' | 'inSine' | 'outSine' | 'inOutSine' | 'inQuad' | 'outQuad' | 'inOutQuad' | 'inCubic' | 'outCubic' | 'inOutCubic' | 'inQuart' | 'outQuart' | 'inOutQuart' | 'inQuint' | 'outQuint' | 'inOutQuint' | 'inExpo' | 'outExpo' | 'inOutExpo' | 'inCirc' | 'outCirc' | 'inOutCirc' | 'inBack' | 'outBack' | 'inOutBack';
+export type EasingId = 'linear' | 'inSine' | 'outSine' | 'inOutSine' | 'inQuad' | 'outQuad' | 'inOutQuad' | 'inCubic' | 'outCubic' | 'inOutCubic' | 'inQuart' | 'outQuart' | 'inOutQuart' | 'inQuint' | 'outQuint' | 'inOutQuint' | 'inExpo' | 'outExpo' | 'inOutExpo' | 'inCirc' | 'outCirc' | 'inOutCirc' | 'inBack' | 'outBack' | 'inOutBack' | (string & {});
 
 export type InterpolationType = 'linear' | 'hold' | 'ease' | 'bezier' | 'ease-in' | 'ease-out';
 
@@ -51,14 +51,16 @@ export type RadialGradientFill = {
 export type Fill = string | LinearGradientFill | RadialGradientFill;
 
 // ─── Effects System ─────────────────────────────────────────────────
-export interface BendItEffect {
-  enabled: boolean;
-  // BendParams properties
+export type BendParams = {
   start: { x: number; y: number };
   end: { x: number; y: number };
   theta: number; // radians
   prestart: 'none' | 'static' | 'bend' | 'mirror';
   postEnd: 'legal' | 'extended';
+};
+
+export interface BendItEffect extends BendParams {
+  enabled: boolean;
 }
 
 export type EffectInstance = BendItEffect; // Union grows as we add effects
@@ -239,6 +241,7 @@ export interface PropertyTrack {
   id: PropertyId;
   keyframes: Keyframe[];
   isSpatial?: boolean;
+  soloed?: boolean;
 }
 
 export interface LayerTrack {
@@ -249,6 +252,7 @@ export interface LayerTrack {
   muted?: boolean;
   locked?: boolean;
   expanded?: boolean;
+  soloed?: boolean;
 }
 
 export type TimelineRow =
@@ -450,7 +454,7 @@ export type EditorAction = (
   | { type: 'SET_TIMELINE_PLAYHEAD'; payload: number, transient?: boolean }
   | { type: 'SET_TIMELINE_PLAYING'; payload: boolean }
   | { type: 'SET_TIMELINE_PLAYBACK_RATE'; payload: number }
-  | { type: 'SET_WORK_AREA'; payload: { startMs: number, endMs: number } | null, transient?: boolean }
+  | { type: 'SET_WORK_AREA'; payload: { startMs: number; endMs: number } | null, transient?: boolean }
   | { type: 'ADD_KEYFRAME_TO_PROPERTY'; payload: { objectId: string; propertyId: PropertyId; timeMs?: number; value?: any; startValue?: any; } }
   | { type: 'SET_PROPERTY_VALUE_AT_PLAYHEAD'; payload: { objectId: string; propertyId: PropertyId; value: KeyValue; timeMs?: number; source?: 'timeline' | 'inspector' } }
   | { type: 'MOVE_TIMELINE_KEYFRAME'; payload: KeyframeMove; transient?: boolean }
@@ -468,8 +472,11 @@ export type EditorAction = (
   | { type: 'SELECT_KEYFRAME'; payload: { objectId: string; propertyId: PropertyId; keyframeId: string; additive?: boolean; } }
   | { type: 'DELETE_SELECTED_KEYFRAMES' }
   | { type: 'TOGGLE_TRACK_EXPANDED'; payload: { objectId: string; value?: boolean } }
+  | { type: 'TOGGLE_LAYER_SOLO'; payload: { objectId: string; value?: boolean } }
+  | { type: 'TOGGLE_PROPERTY_SOLO'; payload: { objectId: string; propertyId: PropertyId; value?: boolean } }
   | { type: 'SELECT_KEYFRAMES_IN_RECT', payload: { keys: { objectId: string, propertyId: PropertyId, keyframeId: string }[], additive: boolean } }
   | { type: 'SET_KEYFRAME_TANGENT_MODE'; payload: { objectId: string; propertyId: PropertyId; keyframeId: string; mode: 'broken' | 'smooth' | 'auto' } }
+  | { type: 'SET_KEYFRAME_EASING'; payload: { objectId: string; propertyId: PropertyId; keyframeId: string; easing: EasingId } }
   | { type: 'UPDATE_KEYFRAME_CONTROL_POINTS', payload: { objectId: string; propertyId: PropertyId; keyframeId: string; controlPoints: Partial<{ x1: number; y1: number; x2: number; y2: number }> } }
   | { type: 'CLEAR_KEYFRAME_SELECTION' }
   | { type: 'SELECT_PROPERTY_TRACK'; payload: { objectId: string; propertyId: PropertyId; additive?: boolean } }

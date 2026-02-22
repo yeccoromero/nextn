@@ -140,7 +140,7 @@ export function EasingPresetPicker({
   const [applyMode, setApplyMode] = useState<'out' | 'in' | 'both'>('both');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(['ease', 'sine', 'back', 'custom'])
+    new Set(['ease', 'sine', 'back', 'spring', 'custom'])
   );
 
   // Phase 8.6: Manual cubic-bezier input

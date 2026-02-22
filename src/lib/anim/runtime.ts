@@ -75,9 +75,12 @@ export function getValueAtTime<T>(keyframes: Keyframe[] | undefined, timeMs: num
   const t = (timeMs - a.timeMs) / segmentDuration;
   let k = t;
 
-  // Handle TEMPORAL Interpolation (Time warping)
-  // Check if we have control points (Cubic Bezier) - this applies to 'bezier' and the new directional types if they have points
-  if ((a.interpolation === 'bezier' || a.interpolation === 'ease' || a.interpolation === 'ease-in' || a.interpolation === 'ease-out') && a.controlPoints) {
+  const isPhysicsEasing = typeof a.easing === 'string' && (a.easing.startsWith('spring') || a.easing.startsWith('elastic'));
+
+  if (isPhysicsEasing) {
+    // Advanced Physics (Spring/Elastic) explicitly bypass bezier control points
+    k = easeValue(a.easing, t);
+  } else if ((a.interpolation === 'bezier' || a.interpolation === 'ease' || a.interpolation === 'ease-in' || a.interpolation === 'ease-out') && a.controlPoints) {
     k = solveCubicBezier(a.controlPoints.x1, a.controlPoints.y1, a.controlPoints.x2, a.controlPoints.y2, t);
   }
   else if (a.interpolation === 'ease') {

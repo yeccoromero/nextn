@@ -8,7 +8,7 @@ export interface EasingPreset {
     id: string;
     name: string;
     displayName: string;
-    category: 'linear' | 'ease' | 'sine' | 'quad' | 'cubic' | 'quart' | 'quint' | 'expo' | 'circ' | 'back' | 'custom';
+    category: 'linear' | 'ease' | 'sine' | 'quad' | 'cubic' | 'quart' | 'quint' | 'expo' | 'circ' | 'back' | 'custom' | 'spring' | 'elastic';
     controlPoints: { x1: number; y1: number; x2: number; y2: number };
     description?: string;
 }
@@ -265,6 +265,34 @@ export const EASING_PRESETS: EasingPreset[] = [
         controlPoints: { x1: 0.68, y1: -0.55, x2: 0.265, y2: 1.55 },
         description: 'Overshoot both'
     },
+
+    // ============ SPRING & ELASTIC (Anime.js) ============
+    {
+        id: 'spring(1, 80, 10, 0)',
+        name: 'spring',
+        displayName: 'Spring (Default)',
+        category: 'spring',
+        // Approximate bezier for thumbnail purposes
+        controlPoints: { x1: 0.175, y1: 0.885, x2: 0.32, y2: 1.275 },
+        description: 'Physics-based spring (mass, stiffness, damping, vel)'
+    },
+    {
+        id: 'spring(1, 100, 10, 0)',
+        name: 'spring-stiff',
+        displayName: 'Spring (Stiff)',
+        category: 'spring',
+        controlPoints: { x1: 0.175, y1: 0.885, x2: 0.32, y2: 1.5 },
+        description: 'Tighter physics spring'
+    },
+    {
+        id: 'elastic(1, .5)',
+        name: 'elastic',
+        displayName: 'Elastic',
+        category: 'elastic',
+        // Approximate bezier for thumbnail
+        controlPoints: { x1: 0.5, y1: -0.5, x2: 0.5, y2: 1.5 },
+        description: 'Wobbly elastic effect'
+    },
 ];
 
 // Category metadata for UI organization
@@ -279,6 +307,8 @@ export const EASING_CATEGORIES = [
     { id: 'expo', name: 'Expo', color: '#fbbf24' },
     { id: 'circ', name: 'Circ', color: '#f87171' },
     { id: 'back', name: 'Back', color: '#ec4899' },
+    { id: 'spring', name: 'Spring', color: '#8b5cf6' },
+    { id: 'elastic', name: 'Elastic', color: '#c084fc' },
     { id: 'custom', name: 'Custom', color: '#eab308' },
 ] as const;
 
