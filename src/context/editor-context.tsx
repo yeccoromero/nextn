@@ -9,7 +9,7 @@ import { getOverallBBox, getObjectCenter, rotatePoint, getVisualBoundingBox, fli
 import { nanoid } from 'nanoid';
 import { normalizePath } from '@/lib/normalizePath';
 import { transformObjectByResize, rotateAroundWorldPivot } from '@/lib/geometry';
-import { AnimeRuntimeApply } from '@/lib/anim/runtime';
+import { AnimeRuntimeApply, getValueAtTime } from '@/lib/anim/runtime';
 import { buildTimelineRows } from '@/lib/anim/timeline-rows';
 import { clipboard } from '@/lib/clipboard';
 import { useUser } from '@/lib/auth';
@@ -1220,21 +1220,33 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
 
       let valueToUse = explicitValue;
       if (valueToUse === undefined) {
-        if (propertyId === 'position') {
-          valueToUse = { x: object.x, y: object.y };
-        } else if (propertyId === 'scale') {
-          valueToUse = { x: object.scaleX ?? 1, y: object.scaleY ?? 1 };
-        } else if (propertyId === 'bendAmount') {
-          const bend = (object as any).bend;
-          valueToUse = bend?.theta ?? 0;
-        } else if (propertyId === 'bendStart') {
-          const bend = (object as any).bend;
-          valueToUse = bend?.start ?? { x: 0, y: 0 };
-        } else if (propertyId === 'bendEnd') {
-          const bend = (object as any).bend;
-          valueToUse = bend?.end ?? { x: 0, y: 0 };
+
+        // 1) Evaluate the current animation track to preserve the visual state
+        let evaluatedValue: any = undefined;
+        if (propTrack.keyframes.length > 0) {
+          evaluatedValue = getValueAtTime(propTrack.keyframes, t, undefined);
+        }
+
+        if (evaluatedValue !== undefined) {
+          valueToUse = evaluatedValue;
         } else {
-          valueToUse = (object as any)[propertyId];
+          // 2) Fallback to base object property if no track or undefined
+          if (propertyId === 'position') {
+            valueToUse = { x: object.x, y: object.y };
+          } else if (propertyId === 'scale') {
+            valueToUse = { x: object.scaleX ?? 1, y: object.scaleY ?? 1 };
+          } else if (propertyId === 'bendAmount') {
+            const bend = (object as any).bend;
+            valueToUse = bend?.theta ?? 0;
+          } else if (propertyId === 'bendStart') {
+            const bend = (object as any).bend;
+            valueToUse = bend?.start ?? { x: 0, y: 0 };
+          } else if (propertyId === 'bendEnd') {
+            const bend = (object as any).bend;
+            valueToUse = bend?.end ?? { x: 0, y: 0 };
+          } else {
+            valueToUse = (object as any)[propertyId];
+          }
         }
       }
 
