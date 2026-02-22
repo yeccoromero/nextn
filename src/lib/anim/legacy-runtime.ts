@@ -147,8 +147,12 @@ export function easeValueLegacy(easing: EasingId | undefined, t: number): number
                         value = 1 - Math.exp(-time * w0) * (1 + b * time);
                     }
 
-                    // Failsafe against NaN just in case
-                    return isNaN(value) ? t : value;
+                    if (!Number.isFinite(value)) {
+                        console.error(`[SPRING_ERROR] t: ${t}, time: ${time}, w0: ${w0}, zeta: ${zeta}, b: ${b}, wd: ${wd} => value: ${value}`);
+                    }
+
+                    // Failsafe against Infinity and NaN just in case
+                    return !Number.isFinite(value) ? t : value;
                 };
             } else if (easingName.startsWith('elastic(')) {
                 const params = easingName.match(/elastic\(([^)]+)\)/)?.[1].split(',').map(parseFloat) || [1, .5];
@@ -156,7 +160,8 @@ export function easeValueLegacy(easing: EasingId | undefined, t: number): number
                 animeEasingFn = (t: number) => {
                     if (t === 0 || t === 1) return t;
                     const s = p / (2 * Math.PI) * Math.asin(1 / a);
-                    return -(a * Math.pow(2, 10 * (t -= 1)) * Math.sin((t - s) * (2 * Math.PI) / p));
+                    const value = -(a * Math.pow(2, 10 * (t -= 1)) * Math.sin((t - s) * (2 * Math.PI) / p));
+                    return !Number.isFinite(value) ? t : value;
                 };
             } else {
                 animeEasingFn = EASING_FN.linear;
