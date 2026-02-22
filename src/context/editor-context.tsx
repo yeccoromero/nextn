@@ -1250,6 +1250,14 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
         }
       }
 
+      // --- NaN Trap ---
+      if (typeof valueToUse === 'number' && !Number.isFinite(valueToUse)) {
+        valueToUse = 0;
+      } else if (typeof valueToUse === 'object' && valueToUse !== null) {
+        if (typeof valueToUse.x === 'number' && !Number.isFinite(valueToUse.x)) valueToUse.x = 0;
+        if (typeof valueToUse.y === 'number' && !Number.isFinite(valueToUse.y)) valueToUse.y = 0;
+      }
+
       if (propTrack.keyframes.length === 0 && startValue !== undefined && !eq(draft, t, t0)) {
         upsertAt(propTrack, t0, startValue);
       }
@@ -2528,9 +2536,38 @@ const historyReducer = produce((state: History<EditorState>, action: EditorActio
   switch (action.type) {
     case 'LOAD_STATE': {
       const stateToLoad = produce(action.payload, draft => {
+        // --- 🚨 NAN CORRUPTION SANITIZER 🚨 ---
+        // If the user's project was saved with NaN values due to the internal Spring bug
+        // we must scrub them so the Canvas doesn't crash on load.
+        for (const objectId in draft.objects) {
+          const obj = draft.objects[objectId] as any;
+          if (!obj) continue;
+          if (typeof obj.x === 'number' && !Number.isFinite(obj.x)) obj.x = 0;
+          if (typeof obj.y === 'number' && !Number.isFinite(obj.y)) obj.y = 0;
+          if (typeof obj.width === 'number' && !Number.isFinite(obj.width)) obj.width = 100;
+          if (typeof obj.height === 'number' && !Number.isFinite(obj.height)) obj.height = 100;
+          if (typeof obj.rotation === 'number' && !Number.isFinite(obj.rotation)) obj.rotation = 0;
+          if (typeof obj.scaleX === 'number' && !Number.isFinite(obj.scaleX)) obj.scaleX = 1;
+          if (typeof obj.scaleY === 'number' && !Number.isFinite(obj.scaleY)) obj.scaleY = 1;
+        }
+
         for (const objectId in draft.timeline.layers) {
           const layer = draft.timeline.layers[objectId];
           if (!layer) continue;
+
+          // Sanitize NaN from poisoned keyframes
+          if (layer.properties) {
+            for (const track of layer.properties) {
+              for (const kf of track.keyframes) {
+                if (typeof kf.value === 'number' && !Number.isFinite(kf.value)) kf.value = 0;
+                if (typeof kf.value === 'object' && kf.value !== null) {
+                  if (typeof kf.value.x === 'number' && !Number.isFinite(kf.value.x)) kf.value.x = 0;
+                  if (typeof kf.value.y === 'number' && !Number.isFinite(kf.value.y)) kf.value.y = 0;
+                }
+              }
+            }
+          }
+
           migrateXYtoPosition(layer as any, draft.objects, objectId);
           migrateScaleXScaleYToScale(layer as any);
           if (layer.properties) {
