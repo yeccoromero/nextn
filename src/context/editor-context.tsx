@@ -1680,8 +1680,7 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
                   if (isScalingLike) continue;
 
                   const newObjState = { ...obj, ...updates };
-                  const newPivotWorld = getWorldAnchor(newObjState, draft.objects);
-                  upsertAt(track, t, newPivotWorld);
+                  upsertAt(track, t, { x: newObjState.x, y: newObjState.y });
                 } else if (animProp === 'scale') {
                   const v = {
                     x: (updates as any).scaleX ?? obj.scaleX ?? 1,
