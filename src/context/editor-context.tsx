@@ -771,6 +771,17 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       for (const { objectId, patch } of action.payload) {
         const obj = draft.objects[objectId];
         if (obj) {
+          // --- 🚨 LIVE NAN TRAP 🚨 ---
+          // Prevent any math calculation from crashing the DOM renderer during playback
+          for (const key in patch) {
+            const v = (patch as any)[key];
+            if (typeof v === 'number' && !Number.isFinite(v)) {
+              (patch as any)[key] = 0;
+            } else if (v && typeof v === 'object') {
+              if (typeof v.x === 'number' && !Number.isFinite(v.x)) v.x = 0;
+              if (typeof v.y === 'number' && !Number.isFinite(v.y)) v.y = 0;
+            }
+          }
           Object.assign(obj, patch);
         }
       }

@@ -1,7 +1,6 @@
-
 'use client';
 
-import type { SvgObject, StarObject, PolygonObject, RectangleObject, EllipseObject, TextObject, BoundingBox, AnchorPosition, Layer, ResizeHandle, BezierPoint, PathObject, GroupObject, SnapLine, Fill, LinearGradientFill, RadialGradientFill, GradientStop } from '@/types/editor';
+import type { SvgObject, StarObject, PolygonObject, RectangleObject, EllipseObject, TextObject, BoundingBox, AnchorPosition, Layer, ResizeHandle, BezierPoint, PathObject, GroupObject, SnapLine, Fill, LinearGradientFill, RadialGradientFill, GradientStop, BendParams, BendItEffect } from '@/types/editor';
 
 
 
@@ -78,6 +77,17 @@ export const isSelectionConstrained = (
   return ids.every(id => objects[id]?.isConstrained);
 }
 
+export const createBendParams = (width: number, height: number): BendItEffect => {
+  // We want the default effect to span the whole object and allow bending past the handles
+  return {
+    enabled: false,
+    start: { x: width / 2, y: height },
+    end: { x: width / 2, y: 0 },
+    theta: 0,
+    prestart: 'bend',
+    postEnd: 'extended'
+  };
+};
 export const rotatePoint = (point: { x: number, y: number }, center: { x: number, y: number }, angle: number) => {
   if (angle == null || !Number.isFinite(angle)) angle = 0;
   const rad = (angle * Math.PI) / 180;
@@ -95,12 +105,16 @@ export const getObjectCenter = (obj: SvgObject): { x: number, y: number } => {
 export const getLocalCorners = (obj: SvgObject, objects: Record<string, SvgObject>): { x: number, y: number }[] => {
   switch (obj.type) {
     case 'rectangle': {
-      const { width, height } = obj;
-      return [{ x: -width / 2, y: -height / 2 }, { x: width / 2, y: -height / 2 }, { x: width / 2, y: height / 2 }, { x: -width / 2, y: height / 2 }];
+      const { width = 100, height = 100 } = obj as any;
+      const w = Number.isFinite(width) ? width : 100;
+      const h = Number.isFinite(height) ? height : 100;
+      return [{ x: -w / 2, y: -h / 2 }, { x: w / 2, y: -h / 2 }, { x: w / 2, y: h / 2 }, { x: -w / 2, y: h / 2 }];
     }
     case 'ellipse': {
-      const { rx, ry } = obj;
-      return [{ x: -rx, y: -ry }, { x: rx, y: -ry }, { x: rx, y: ry }, { x: -rx, y: ry }];
+      const { rx = 50, ry = 50 } = obj as any;
+      const r_x = Number.isFinite(rx) ? rx : 50;
+      const r_y = Number.isFinite(ry) ? ry : 50;
+      return [{ x: -r_x, y: -r_y }, { x: r_x, y: -r_y }, { x: r_x, y: r_y }, { x: -r_x, y: r_y }];
     }
     case 'star': {
       const star = obj as StarObject;
@@ -205,14 +219,20 @@ export const getOrientedBBox = (obj: SvgObject, objects: Record<string, SvgObjec
   const sx = Math.abs(worldScale.x ?? 1);
   const sy = Math.abs(worldScale.y ?? 1);
 
-  const width = (maxX - minX) * sx;
-  const height = (maxY - minY) * sy;
+  const strokePadding = obj.strokeWidth || 0;
+
+  const width = (maxX - minX) * sx + strokePadding;
+  const height = (maxY - minY) * sy + strokePadding;
 
   const worldPos = localToWorld(obj, { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }, objects);
   const worldRot = getWorldRotation(obj, objects);
 
   const cx = worldPos.x;
   const cy = worldPos.y;
+
+  if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(width) || !Number.isFinite(height)) {
+    return { x: 0, y: 0, width: 0, height: 0, rotation: 0, cx: 0, cy: 0 };
+  }
 
   return { x: cx - width / 2, y: cy - height / 2, width, height, rotation: worldRot, cx, cy };
 };
@@ -226,6 +246,7 @@ export const getOverallBBox = (selectedObjects: SvgObject[], objects: Record<str
   }
 
   const bboxes = selectedObjects.map(obj => {
+    const strokePadding = obj.strokeWidth || 0;
     const corners = getLocalCorners(obj, objects).map(p => localToWorld(obj, p, objects));
     if (corners.length === 0) return { x: obj.x, y: obj.y, width: 0, height: 0 };
     const xs = corners.map(p => p.x);
@@ -234,7 +255,12 @@ export const getOverallBBox = (selectedObjects: SvgObject[], objects: Record<str
     const minY = Math.min(...ys);
     const maxX = Math.max(...xs);
     const maxY = Math.max(...ys);
-    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    return {
+      x: minX - strokePadding / 2,
+      y: minY - strokePadding / 2,
+      width: (maxX - minX) + strokePadding,
+      height: (maxY - minY) + strokePadding
+    };
   });
 
   const xMin = Math.min(...bboxes.map(b => b.x));
@@ -246,6 +272,10 @@ export const getOverallBBox = (selectedObjects: SvgObject[], objects: Record<str
 
   const cx = xMin + width / 2;
   const cy = yMin + height / 2;
+
+  if (!Number.isFinite(xMin) || !Number.isFinite(yMin) || !Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(cx) || !Number.isFinite(cy)) {
+    return null;
+  }
 
   return { x: xMin, y: yMin, width, height, rotation: 0, cx, cy };
 }
@@ -261,9 +291,7 @@ export const getRotatedCursor = (cursor: string, angle: number): string => {
   const cursorSet = cursors[cursor];
   if (!cursorSet) return cursor;
   const segment = Math.floor((normalizedAngle + 22.5) / 45) % 8;
-  if (cursor === 'ns-resize' || cursor === 'ew-resize') return cursorSet[Math.floor(segment / 2)];
-  const diagonalSegment = Math.floor(normalizedAngle / 45) % 8;
-  return cursorSet[Math.round(diagonalSegment / 2) % 4];
+  return cursorSet[segment % 4];
 };
 
 export const getHoveredInteraction = (
@@ -417,9 +445,12 @@ export function localToWorld(obj: SvgObject | null, p: { x: number; y: number },
     };
 
     // 3. Translate
+    const tx = typeof current.x === 'number' && Number.isFinite(current.x) ? current.x : 0;
+    const ty = typeof current.y === 'number' && Number.isFinite(current.y) ? current.y : 0;
+
     point = {
-      x: point.x + current.x,
-      y: point.y + current.y,
+      x: point.x + tx,
+      y: point.y + ty,
     };
 
     current = current.parentId ? objects[current.parentId] : undefined;
@@ -440,8 +471,11 @@ export function worldToLocal(parent: SvgObject | null, p: { x: number; y: number
   let point = { ...p };
   for (const ancestor of hierarchy) {
     // 1. Inverse Translate
-    const dx = point.x - ancestor.x;
-    const dy = point.y - ancestor.y;
+    const tx = typeof ancestor.x === 'number' && Number.isFinite(ancestor.x) ? ancestor.x : 0;
+    const ty = typeof ancestor.y === 'number' && Number.isFinite(ancestor.y) ? ancestor.y : 0;
+
+    const dx = point.x - tx;
+    const dy = point.y - ty;
 
     // 2. Inverse Rotate
     const angleRad = -(ancestor.rotation || 0) * Math.PI / 180;
