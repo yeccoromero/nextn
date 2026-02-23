@@ -81,7 +81,7 @@ type EditorAction = (
   | { type: 'SET_TIMELINE_PLAYING'; payload: boolean }
   | { type: 'SET_TIMELINE_PLAYBACK_RATE'; payload: number }
   | { type: 'SET_WORK_AREA'; payload: { startMs: number, endMs: number } | null, transient?: boolean }
-  | { type: 'ADD_KEYFRAME_TO_PROPERTY'; payload: { objectId: string; propertyId: PropertyId; timeMs?: number; value?: any; startValue?: any; } }
+  | { type: 'ADD_KEYFRAME_TO_PROPERTY'; payload: { objectId: string; propertyId: PropertyId; timeMs?: number; value?: any; startValue?: any; useEvaluated?: boolean; } }
   | { type: 'SET_PROPERTY_VALUE_AT_PLAYHEAD'; payload: { objectId: string; propertyId: PropertyId; value: KeyValue; timeMs?: number; source?: 'timeline' | 'inspector' } }
   | { type: 'MOVE_TIMELINE_KEYFRAME'; payload: KeyframeMove; transient?: boolean }
   | { type: 'MOVE_TIMELINE_KEYFRAMES'; payload: { moves: KeyframeMove[] }; transient?: boolean }
@@ -1202,7 +1202,7 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       draft.timeline.playbackRate = action.payload;
       break;
     case 'ADD_KEYFRAME_TO_PROPERTY': {
-      const { objectId, propertyId: rawPropId, timeMs: explicitTimeMs, value: explicitValue, startValue } = action.payload;
+      const { objectId, propertyId: rawPropId, timeMs: explicitTimeMs, value: explicitValue, startValue, useEvaluated } = action.payload;
       const object = draft.objects[objectId];
 
       // COHERENCE CHECK: Ensure we don't accidentally animate Position if rawPropId is unrelated
@@ -1236,9 +1236,9 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       let valueToUse = explicitValue;
       if (valueToUse === undefined) {
 
-        // 1) Evaluate the current animation track to preserve the visual state
+        // 1) Evaluate the current animation track to preserve the visual state IF REQUESTED
         let evaluatedValue: any = undefined;
-        if (propTrack.keyframes.length > 0) {
+        if (useEvaluated && propTrack.keyframes.length > 0) {
           evaluatedValue = getValueAtTime(propTrack.keyframes, t, undefined);
         }
 

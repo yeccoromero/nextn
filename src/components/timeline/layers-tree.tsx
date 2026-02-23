@@ -222,7 +222,7 @@ const PropertyRowUI = ({
 
     dispatch({
       type: 'ADD_KEYFRAME_TO_PROPERTY',
-      payload: { objectId, propertyId: pid, timeMs: timeline.playheadMs },
+      payload: { objectId, propertyId: pid, timeMs: timeline.playheadMs, useEvaluated: true },
     });
   };
 
