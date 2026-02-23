@@ -1014,6 +1014,10 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       } else if (propertyId === 'bendEnd') {
         const bend = (obj as any).bend;
         initialValue = bend?.end ?? { x: 0, y: 0 };
+      } else if (propertyId === 'position') {
+        initialValue = { x: obj.x ?? 0, y: obj.y ?? 0 };
+      } else if (propertyId === 'scale') {
+        initialValue = { x: obj.scaleX ?? 1, y: obj.scaleY ?? 1 };
       }
 
       if (initialValue === undefined && propertyId === 'opacity') initialValue = 1;
