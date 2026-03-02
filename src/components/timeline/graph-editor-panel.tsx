@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useEditor } from '@/context/editor-context';
+import { useEditorStore } from '@/store';
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 // Popover removed in favor of floating palette
@@ -21,6 +21,37 @@ interface GraphEditorPanelProps {
 }
 
 interface Point { x: number; y: number }
+
+function getScalarTrackValue(value: any): number {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (value && typeof value === 'object' && typeof value.x === 'number' && Number.isFinite(value.x)) {
+        return value.x;
+    }
+    return 0;
+}
+
+function getVectorTrackValue(value: any): Point | null {
+    if (
+        value &&
+        typeof value === 'object' &&
+        typeof value.x === 'number' && Number.isFinite(value.x) &&
+        typeof value.y === 'number' && Number.isFinite(value.y)
+    ) {
+        return { x: value.x, y: value.y };
+    }
+    return null;
+}
+
+function getSpeedDeltaValue(propertyId: string, fromValue: any, toValue: any): number {
+    const fromVec = getVectorTrackValue(fromValue);
+    const toVec = getVectorTrackValue(toValue);
+
+    if ((propertyId === 'position' || propertyId === 'scale' || propertyId === 'scaleX' || propertyId === 'scaleY') && fromVec && toVec) {
+        return Math.hypot(toVec.x - fromVec.x, toVec.y - fromVec.y);
+    }
+
+    return getScalarTrackValue(toValue) - getScalarTrackValue(fromValue);
+}
 
 function getSelectedTracks(state: any): { objectId: string, track: PropertyTrack }[] {
     const selectedProperties = state.timeline.selection?.properties || [];
@@ -81,9 +112,16 @@ type GraphMode = 'speed' | 'value';
 const HANDLE_COLOR = '#eab308';
 const HANDLE_HOVER_COLOR = '#facc15';
 const PLAYHEAD_COLOR = '#22d3ee';
+const MIN_GRAPH_ZOOM_X = 0.25;
+const MAX_GRAPH_ZOOM_X = 10;
+
+function clampGraphZoomX(value: number): number {
+    return Math.max(MIN_GRAPH_ZOOM_X, Math.min(MAX_GRAPH_ZOOM_X, value));
+}
 
 export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: GraphEditorPanelProps) {
-    const { state, dispatch } = useEditor();
+    const dispatch = useEditorStore(state => state.dispatch);
+    const state = useEditorStore(state => state.present);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const [graphMode, setGraphMode] = useState<GraphMode>('speed');
@@ -109,12 +147,17 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
     const [hoveredHandleId, setHoveredHandleId] = useState<string | null>(null);
     const [hoveredType, setHoveredType] = useState<'in' | 'out' | 'keyframe' | null>(null);
+    const selectedTracks = useMemo(() => getSelectedTracks(state), [state.timeline.selection?.properties, state.selectedObjectIds, state.timeline.layers]);
+    const selectedKeyIds = useMemo(() => state.timeline.selection?.keyIds ?? [], [state.timeline.selection?.keyIds]);
 
+    const fitContextRef = useRef<{
+        selectedTracks: { objectId: string, track: PropertyTrack }[];
+        selectedKeyIds: string[];
+    }>({ selectedTracks: [], selectedKeyIds: [] });
 
+    fitContextRef.current = { selectedTracks, selectedKeyIds };
 
-
-
-    const selectedTracks = getSelectedTracks(state);
+    const viewportRef = useRef({ panelWidth: 0, canvasWidth: 0, msPerPx: 1, originMs: 0 });
 
     // --- Marquee & Zoom Logic ---
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -129,21 +172,131 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
         return centerX + (baseX - centerX + panOffset) * zoomX;
     }, [originMs, msPerPx, zoomX, panOffset]);
 
+    viewportRef.current = {
+        panelWidth,
+        canvasWidth: canvasSize.width,
+        msPerPx,
+        originMs,
+    };
+
     // Apply easing preset to ALL keyframes in selected tracks (Phase 9.2)
     // Removed handleApplyPreset as it is now in TimelinePanel.
 
 
-    const handleZoomIn = () => setZoomX(prev => Math.min(prev * 1.5, 10));
-    const handleZoomOut = () => setZoomX(prev => Math.max(prev / 1.5, 0.25));
+    const selectionSignature = useMemo(() => {
+        const objectPart = [...(state.selectedObjectIds || [])].sort().join('|');
+        const propertyPart = [...(state.timeline.selection?.properties || [])]
+            .map(({ objectId, propertyId }) => `${objectId}:${propertyId}`)
+            .sort()
+            .join('|');
+        const keyPart = [...selectedKeyIds].sort().join('|');
+        return `${objectPart}::${propertyPart}::${keyPart}`;
+    }, [state.selectedObjectIds, state.timeline.selection?.properties, selectedKeyIds]);
+
+    const fitHorizontalView = useCallback((resetIfEmpty = true) => {
+        const { selectedTracks: tracks, selectedKeyIds: keyIds } = fitContextRef.current;
+        const { panelWidth: panelW, canvasWidth, msPerPx: currentMsPerPx, originMs: currentOriginMs } = viewportRef.current;
+
+        const width = canvasWidth > 0 ? canvasWidth : panelW;
+        if (width <= 0 || currentMsPerPx <= 0) return;
+
+        const keySet = new Set(keyIds);
+        const selectedTimes: number[] = [];
+        const allTimes: number[] = [];
+
+        tracks.forEach(({ track }) => {
+            track.keyframes.forEach(kf => {
+                allTimes.push(kf.timeMs);
+                if (keySet.has(kf.id)) {
+                    selectedTimes.push(kf.timeMs);
+                }
+            });
+        });
+
+        const times = selectedTimes.length > 0 ? selectedTimes : allTimes;
+
+        if (times.length === 0) {
+            if (resetIfEmpty) {
+                setZoomX(1);
+                setPanOffset(0);
+            }
+            return;
+        }
+
+        let minTime = Math.min(...times);
+        let maxTime = Math.max(...times);
+
+        if (!Number.isFinite(minTime) || !Number.isFinite(maxTime)) return;
+
+        if (maxTime <= minTime) {
+            const fallbackSpanMs = Math.max(200, width * currentMsPerPx * 0.2);
+            minTime -= fallbackSpanMs / 2;
+            maxTime += fallbackSpanMs / 2;
+        }
+
+        const spanMs = maxTime - minTime;
+        const paddingMs = Math.max(40, spanMs * 0.12);
+        const fitStart = minTime - paddingMs;
+        const fitEnd = maxTime + paddingMs;
+
+        const baseStartX = msToX(fitStart, currentOriginMs, currentMsPerPx);
+        const baseEndX = msToX(fitEnd, currentOriginMs, currentMsPerPx);
+        const baseSpanPx = baseEndX - baseStartX;
+
+        if (!Number.isFinite(baseSpanPx) || baseSpanPx <= 0) return;
+
+        const marginPx = Math.max(24, Math.min(96, width * 0.08));
+        const innerWidth = Math.max(10, width - marginPx * 2);
+        const nextZoom = clampGraphZoomX(innerWidth / baseSpanPx);
+
+        const centerX = width / 2;
+        const nextPanOffset = (marginPx - centerX) / nextZoom - (baseStartX - centerX);
+
+        if (Number.isFinite(nextPanOffset)) {
+            setZoomX(nextZoom);
+            setPanOffset(nextPanOffset);
+        }
+    }, []);
+
+    const resetHorizontalView = useCallback(() => {
+        setZoomX(1);
+        setPanOffset(0);
+    }, []);
+
+    useEffect(() => {
+        fitHorizontalView(true);
+    }, [selectionSignature, fitHorizontalView]);
+
+    const handleZoomIn = () => setZoomX(prev => clampGraphZoomX(prev * 1.5));
+    const handleZoomOut = () => setZoomX(prev => clampGraphZoomX(prev / 1.5));
 
     const handleWheel = useCallback((e: React.WheelEvent) => {
         if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
+            e.stopPropagation();
+
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const pointerX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+            const centerX = rect.width / 2;
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            setZoomX(prev => Math.max(0.25, Math.min(10, prev * delta)));
+            setZoomX(prevZoom => {
+                const nextZoom = clampGraphZoomX(prevZoom * delta);
+                if (nextZoom === prevZoom) return prevZoom;
+
+                setPanOffset(prevPan => {
+                    const zoomDrift = (pointerX - centerX) * ((1 / nextZoom) - (1 / prevZoom));
+                    return prevPan + zoomDrift;
+                });
+
+                return nextZoom;
+            });
         } else if (e.shiftKey) {
             // Shift+scroll for horizontal pan
             e.preventDefault();
+            e.stopPropagation();
             setPanOffset(prev => prev - e.deltaY);
         }
     }, []);
@@ -801,7 +954,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 y: e.clientY,
                 initialStates,
                 hasMoved: false, // Track if actual drag occurred
-                shouldSelectExclusiveOnUp: isSelected && !e.shiftKey // Trigger exclusive select on up if no drag
+                shouldSelectExclusiveOnUp: !!isSelected && !e.shiftKey // Trigger exclusive select on up if no drag
             };
 
             dragTargetRef.current = hit;
@@ -1039,8 +1192,8 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
         let globalStartMs = Infinity, globalEndMs = -Infinity;
 
         // First pass: calculate Y ranges and Global Max/Min Velocity
-        let globalMaxVelocity = 10;
-        let globalMinVelocity = 0;
+        let globalMaxVelocity = Number.NEGATIVE_INFINITY;
+        let globalMinVelocity = Number.POSITIVE_INFINITY;
         const PADDING_TOP = 20;
 
         selectedTracks.forEach(({ track }) => {
@@ -1056,9 +1209,10 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 const duration = kf2.timeMs - kf1.timeMs;
                 if (duration <= 0) continue;
 
-                const val1 = (typeof kf1.value === 'number') ? kf1.value : (kf1.value as any).x ?? 0;
-                const val2 = (typeof kf2.value === 'number') ? kf2.value : (kf2.value as any).x ?? 0;
+                const val1 = getScalarTrackValue(kf1.value);
+                const val2 = getScalarTrackValue(kf2.value);
                 const deltaVal = val2 - val1;
+                const speedDeltaVal = getSpeedDeltaValue(track.id, kf1.value, kf2.value);
                 const timeSec = duration / 1000;
 
                 globalMinVal = Math.min(globalMinVal, val1, val2);
@@ -1079,20 +1233,25 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 }
 
                 if (kf1.interpolation === 'linear') {
-                    const vel = deltaVal / timeSec; // Signed
+                    const vel = speedDeltaVal / timeSec;
                     globalMaxVelocity = Math.max(globalMaxVelocity, vel);
                     globalMinVelocity = Math.min(globalMinVelocity, vel);
                 } else if (kf1.interpolation !== 'hold') {
                     // Sample bezier for max velocity
                     for (let t = 0; t <= 1; t += 0.1) {
                         const vel = getSafeVelocity(t, cp1.x, cp2.x, cp1.y, cp2.y);
-                        const realVel = vel * (deltaVal / timeSec); // Signed
+                        const realVel = vel * (speedDeltaVal / timeSec);
                         globalMaxVelocity = Math.max(globalMaxVelocity, realVel);
                         globalMinVelocity = Math.min(globalMinVelocity, realVel);
                     }
                 }
             }
         });
+
+        if (!Number.isFinite(globalMaxVelocity) || !Number.isFinite(globalMinVelocity)) {
+            globalMaxVelocity = 0;
+            globalMinVelocity = 0;
+        }
 
         // Helper for consistent physics
         function getSafeVelocity(t: number, x1: number, x2: number, y1: number, y2: number): number {
@@ -1113,16 +1272,17 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
         if (graphMode === 'speed') {
             const availableHeight = height - (PADDING_TOP * 2);
+            const MIN_SPEED_RANGE = 0.1;
 
             // ADAPTIVE ZERO: Check if we have negative velocities
             // Epsilon -0.5 to ignore tiny noise, but if significantly negative, switch to centered
-            const hasNegative = globalMinVelocity < -0.5;
+            const hasNegative = globalMinVelocity < -0.0001;
 
-            let maxAbs = 100;
+            let maxAbs = 1;
 
             if (!hasNegative) {
                 // --- POSITIVE ONLY MODE (Bottom Baseline) ---
-                maxAbs = Math.max(globalMaxVelocity * 1.1, 10);
+                maxAbs = Math.max(globalMaxVelocity * 1.1, MIN_SPEED_RANGE);
 
                 // Nice Number Logic (0 to Max)
                 const targetSteps = 5;
@@ -1135,10 +1295,10 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 else if (res > 1) step = 2 * mag;
 
                 niceSpeedStep = step;
-                niceSpeedMax = Math.ceil(maxAbs / step) * step;
+                niceSpeedMax = Math.max(step, Math.ceil(maxAbs / step) * step);
                 niceSpeedMin = 0;
 
-                speedPxPerUnit = availableHeight / niceSpeedMax; // Use full height
+                speedPxPerUnit = availableHeight / Math.max(niceSpeedMax, MIN_SPEED_RANGE);
                 speedMidY = height - PADDING_TOP; // 0 is at bottom
             } else {
                 // --- MIXED / NEGATIVE MODE (Asymmetric) ---
@@ -1146,7 +1306,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
                 // 1. Determine "step" size based on largest magnitude
                 const absMax = Math.max(Math.abs(globalMaxVelocity), Math.abs(globalMinVelocity));
-                const rangeMagnitude = absMax * 1.1;
+                const rangeMagnitude = Math.max(absMax * 1.1, MIN_SPEED_RANGE / 2);
 
                 const targetSteps = 5;
                 const rawStep = rangeMagnitude / targetSteps;
@@ -1173,7 +1333,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 if (globalMaxVelocity <= 0) niceSpeedMax = 0;
 
                 // 3. Calculate Scale
-                const totalRange = niceSpeedMax - niceSpeedMin;
+                const totalRange = Math.max(niceSpeedMax - niceSpeedMin, MIN_SPEED_RANGE);
                 speedPxPerUnit = availableHeight / totalRange;
 
                 // 4. Calculate Zero Line (midY)
@@ -1253,9 +1413,10 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 const duration = endMs - startMs;
                 if (duration <= 0) continue;
 
-                const val1 = (typeof kf1.value === 'number') ? kf1.value : (kf1.value as any).x ?? 0;
-                const val2 = (typeof kf2.value === 'number') ? kf2.value : (kf2.value as any).x ?? 0;
+                const val1 = getScalarTrackValue(kf1.value);
+                const val2 = getScalarTrackValue(kf2.value);
                 const deltaVal = val2 - val1;
+                const speedDeltaVal = getSpeedDeltaValue(track.id, kf1.value, kf2.value);
                 const timeSec = duration / 1000;
 
                 let isConstant = false;
@@ -1268,7 +1429,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     constantVel = 0;
                 } else if (kf1.interpolation === 'linear') {
                     isConstant = true;
-                    constantVel = deltaVal / timeSec;
+                    constantVel = speedDeltaVal / timeSec;
                     cp1 = { x: 0, y: 0 };
                     cp2 = { x: 1, y: 1 };
                 } else if ((kf1.interpolation === 'bezier' || kf1.interpolation === 'ease' || kf1.interpolation === 'ease-in' || kf1.interpolation === 'ease-out') && kf1.controlPoints) {
@@ -1304,7 +1465,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                         for (let s = 0; s <= steps; s++) {
                             const t = s / steps;
                             const normVel = getSafeVelocity(t, cp1.x, cp2.x, cp1.y, cp2.y);
-                            const realVel = normVel * (deltaVal / timeSec);
+                            const realVel = normVel * (speedDeltaVal / timeSec);
 
                             const timeProgress = cubicBezierOneAxis(t, cp1.x, cp2.x);
                             const curMs = startMs + timeProgress * duration;
@@ -2059,9 +2220,14 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                 >
                     <ZoomOut size={14} />
                 </Button>
-                <span className="px-2 py-1 text-xs font-mono text-zinc-400 bg-zinc-800/50 rounded min-w-[50px] flex items-center justify-center border border-white/5">
+                <button
+                    type="button"
+                    onClick={resetHorizontalView}
+                    className="px-2 py-1 text-xs font-mono text-zinc-400 bg-zinc-800/50 rounded min-w-[50px] flex items-center justify-center border border-white/5 hover:bg-zinc-700/50 hover:text-zinc-200 transition-colors"
+                    title="Reset horizontal zoom and pan"
+                >
                     {(zoomX * 100).toFixed(0)}%
-                </span>
+                </button>
                 <Button
                     variant="ghost"
                     size="icon"
@@ -2070,6 +2236,15 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
                     title="Zoom In (Ctrl+Scroll)"
                 >
                     <ZoomIn size={14} />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fitHorizontalView(true)}
+                    className="h-7 px-2 text-xs font-medium text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/50"
+                    title="Fit horizontal range to selected keys"
+                >
+                    Fit X
                 </Button>
 
                 <div className="w-px bg-white/10 mx-1" />
@@ -2246,7 +2421,7 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
 
             {/* Instructions */}
             <div className="absolute bottom-2 left-2 text-[10px] text-zinc-600 pointer-events-none z-10">
-                Shift: Lock Axis | Ctrl+Scroll: Zoom | Shift+Scroll: Pan
+                Shift: Lock Axis | Ctrl+Scroll: Zoom at cursor | Shift+Scroll: Pan | Fit X: Auto framing
             </div>
 
             <canvas
@@ -2302,4 +2477,3 @@ export function GraphEditorPanel({ scrollRef, panelWidth, originMs, msPerPx }: G
         </div>
     );
 }
-

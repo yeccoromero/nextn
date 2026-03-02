@@ -1,4 +1,3 @@
-// @ts-nocheck
 // src/lib/anim/legacy-runtime.ts
 import anime, { type AnimeTimelineInstance } from 'animejs';
 import type { EasingId, PropertyId, TimelineSpec, SvgObject, Keyframe as AnimKeyframe, ApplyPatch, Clip } from '@/types/editor';
@@ -413,12 +412,12 @@ export class AnimeRuntimeApplyLegacy {
             // 1. Scale (`scale` has precedence over `scaleX`/`scaleY`)
             const scaleProp = objTracks.scale ? 'scale' : (objTracks.scaleX || objTracks.scaleY ? 'scaleX/Y' : null);
             if (scaleProp) {
-                const targetScaleX = scaleProp === 'scale' ? (base.scale as { x: number, y: number }).x : (objTracks.scaleX ? base.scaleX as number : state.scaleX ?? 1);
-                const targetScaleY = scaleProp === 'scale' ? (base.scale as { x: number, y: number }).y : (objTracks.scaleY ? base.scaleY as number : state.scaleY ?? 1);
+                const targetScaleX = scaleProp === 'scale' ? ((base as any).scale as { x: number, y: number }).x : (objTracks.scaleX ? base.scaleX as number : state.scaleX ?? 1);
+                const targetScaleY = scaleProp === 'scale' ? ((base as any).scale as { x: number, y: number }).y : (objTracks.scaleY ? base.scaleY as number : state.scaleY ?? 1);
                 const pivotWorld = getWorldAnchor(state, objectsPrime);
                 const sUpdates = scaleAroundWorldPivot(state, targetScaleX, targetScaleY, pivotWorld, objectsPrime);
-                patch = { ...patch, ...sUpdates };
-                state = { ...state, ...sUpdates };
+                patch = { ...patch, ...sUpdates } as Partial<SvgObject>;
+                state = { ...state, ...sUpdates } as SvgObject;
             }
 
             // 2. Rotation
@@ -426,19 +425,19 @@ export class AnimeRuntimeApplyLegacy {
                 const targetRot = (base.rotation ?? state.rotation ?? 0) as number;
                 const pivotWorld = getWorldAnchor(state, objectsPrime); // uses updated state from scale
                 const rUpdates = rotateAroundWorldPivot(state, targetRot, pivotWorld, objectsPrime);
-                patch = { ...patch, ...rUpdates };
-                state = { ...state, ...rUpdates }; // Update state for subsequent calculations
+                patch = { ...patch, ...rUpdates } as Partial<SvgObject>;
+                state = { ...state, ...rUpdates } as SvgObject; // Update state for subsequent calculations
             }
 
             // 3. Position (`position` track has precedence)
             if (objTracks.position) {
-                const posLocal = base.position as { x: number; y: number };
-                (patch as SvgObject).x = posLocal.x;
-                (patch as SvgObject).y = posLocal.y;
+                const posLocal = (base as any).position as unknown as { x: number; y: number };
+                (patch as any).x = posLocal.x;
+                (patch as any).y = posLocal.y;
             } else {
                 // legacy support (optional)
-                if (objTracks.x) (patch as SvgObject).x = (base as any).x as number;
-                if (objTracks.y) (patch as SvgObject).y = (base as any).y as number;
+                if (objTracks.x) (patch as any).x = (base as any).x as number;
+                if (objTracks.y) (patch as any).y = (base as any).y as number;
             }
 
             // --- End of transform calculations ---
@@ -450,7 +449,7 @@ export class AnimeRuntimeApplyLegacy {
                 }
             }
 
-            frameObjects[objectId] = { ...state, ...patch };
+            frameObjects[objectId] = { ...state, ...patch } as SvgObject;
 
             if (Object.keys(patch).length) {
                 batch.push({ objectId, patch });
@@ -500,7 +499,7 @@ export class AnimeRuntimeApplyLegacy {
 
     setRate(rate: number) {
         if (this.tl) {
-            this.tl.speed = rate;
+            (this.tl as any).speed = rate;
         }
     }
 

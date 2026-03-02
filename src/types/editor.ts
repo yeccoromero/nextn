@@ -63,7 +63,25 @@ export interface BendItEffect extends BendParams {
   enabled: boolean;
 }
 
-export type EffectInstance = BendItEffect; // Union grows as we add effects
+export type WarpStyle =
+  | 'arc' | 'arc-lower' | 'arc-upper' | 'arch'
+  | 'bulge' | 'shell-lower' | 'shell-upper'
+  | 'flag' | 'wave' | 'fish' | 'rise'
+  | 'fish-eye' | 'inflate' | 'twist' | 'squeeze';
+
+export interface WarpEffect {
+  enabled: boolean;
+  style: WarpStyle;
+  axis: 'horizontal' | 'vertical';
+  /** -100 to 100 */
+  bend: number;
+  /** -100 to 100 */
+  hDist: number;
+  /** -100 to 100 */
+  vDist: number;
+}
+
+export type EffectInstance = BendItEffect | WarpEffect;
 
 export interface SvgBase {
   id: string;
@@ -84,6 +102,7 @@ export interface SvgBase {
   locked?: boolean;
   opacity?: number;
   bend?: BendItEffect;
+  warp?: WarpEffect;
 }
 
 export interface RectangleObject extends SvgBase {
@@ -235,7 +254,7 @@ export type Clip = {
 };
 
 
-export type PropertyId = 'x' | 'y' | 'position' | 'rotation' | 'scaleX' | 'scaleY' | 'scale' | 'opacity' | 'fill' | 'stroke' | 'pathD' | 'width' | 'height' | 'rx' | 'ry' | 'outerRadius' | 'innerRadius' | 'radius' | 'sides' | 'points' | 'fontSize' | 'corners' | 'strokeWidth' | 'strokeLineCap' | 'bendAmount' | 'bendStart' | 'bendEnd';
+export type PropertyId = 'x' | 'y' | 'position' | 'rotation' | 'scaleX' | 'scaleY' | 'scale' | 'opacity' | 'fill' | 'stroke' | 'pathD' | 'width' | 'height' | 'rx' | 'ry' | 'outerRadius' | 'innerRadius' | 'radius' | 'sides' | 'points' | 'fontSize' | 'corners' | 'strokeWidth' | 'strokeLineCap' | 'bendAmount' | 'bendStart' | 'bendEnd' | 'warpBend' | 'warpHDist' | 'warpVDist' | 'warpStyle' | 'warpAxis';
 
 export interface PropertyTrack {
   id: PropertyId;

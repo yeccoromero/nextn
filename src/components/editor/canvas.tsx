@@ -1,11 +1,14 @@
-// @ts-nocheck
 
 
 'use client';
 
 import { useRef, useState, type PointerEvent, type MouseEvent, useEffect, useMemo, memo } from 'react';
+import { useEditorStore } from '@/store';
 import { useEditor } from '@/context/editor-context';
-import type { SvgObject, PathObject, BezierPoint, Tool, ResizeHandle, GroupObject, BoundingBox, SnapLine, Fill, LinearGradientFill, RadialGradientFill, GradientStop, PropertyId, RectangleObject, CopiedKeyframe, ClipboardEnvelope, LayerTrack } from '@/types/editor';
+import { useCanvasShortcuts } from '@/hooks/use-canvas-shortcuts';
+import { useCanvasZoom } from '@/hooks/use-canvas-zoom';
+import { useCanvasSelection } from '@/hooks/use-canvas-selection';
+import type { SvgObject, PathObject, BezierPoint, Tool, ResizeHandle, GroupObject, BoundingBox, SnapLine, Fill, LinearGradientFill, RadialGradientFill, GradientStop, PropertyId, RectangleObject, EllipseObject, CopiedKeyframe, ClipboardEnvelope, LayerTrack } from '@/types/editor';
 import { nanoid } from 'nanoid';
 import { getOverallBBox, rotatePoint, isSelectionConstrained, getHoveredInteraction, getRotatedCursor, getVisualBoundingBox, buildPathD, getWorldAnchor, getSmartSnap, localToWorld, worldToLocal, ENFORCE_EDGE_CLAMP, getWorldRotation } from '@/lib/editor-utils';
 import { transformObjectByResize } from '@/lib/geometry';
@@ -13,6 +16,7 @@ import { clipboard } from '@/lib/clipboard';
 import { getSvgPointFromClient, hitTestAtPoint } from '@/lib/hit-detection-utils';
 import { BendItRenderer } from '@/components/effects/BendItRenderer';
 import { BendItOverlay } from '@/components/editor/bend-it-overlay';
+import { WarpRenderer } from '@/components/effects/WarpRenderer';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '../ui/context-menu';
 import { Scissors, Copy, ClipboardPaste, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Lock, Unlock, Pencil, Group, Ungroup, CopyPlus, Eye, EyeOff, ArrowLeftRight, ArrowUpDown } from 'lucide-react';
 import { NodeToolIcon, PenToolAddIcon, PenToolRemoveIcon } from '../icons';
@@ -219,6 +223,18 @@ const RenderObject = memo(({ obj, selectedObjectIds, currentTool, allObjects, se
                         renderScale={renderScale}
                     />
                 </foreignObject>
+            </g>
+        );
+    }
+
+    // --- WARP EFFECT INTEGRATION ---
+    if (obj.warp?.enabled) {
+        // Warp deforms SVG geometry points directly — no WebGL needed.
+        // We apply the object's transform (translate/rotate/scale) then render the deformed path.
+        const warpTransform = `translate(${obj.x || 0} ${obj.y || 0}) rotate(${obj.rotation || 0})`;
+        return (
+            <g data-id={obj.id} transform={warpTransform}>
+                <WarpRenderer obj={obj} fill={fill} params={obj.warp} />
             </g>
         );
     }
@@ -740,7 +756,9 @@ const hitTestEffectHandles = (
 }
 
 export default function Canvas() {
-    const { state, dispatch, zoomActionsRef } = useEditor();
+    const dispatch = useEditorStore(state => state.dispatch);
+    const state = useEditorStore(state => state.present);
+    const { zoomActionsRef } = useEditor();
 
     if (!state) {
         return <div className="w-full h-full bg-muted/40 animate-pulse" />;
@@ -757,8 +775,8 @@ export default function Canvas() {
     const containerRef = useRef<HTMLDivElement>(null);
     const interactionStateRef = useRef<InteractionState>({ type: null, start: { x: 0, y: 0 } });
     const [cursor, setCursor] = useState('default');
-
     const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
+    const { startMarquee, updateMarquee, finishMarquee } = useCanvasSelection(svgRef, setMarqueeRect, canvas.zoom);
 
     useEffect(() => {
         const handleGlobalReset = (e: any) => {
@@ -784,113 +802,7 @@ export default function Canvas() {
         };
     }, [dispatch, currentTool]);
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            const target = e.target as HTMLElement;
-            if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
-                return;
-            }
-
-            if (e.key === ' ') {
-                e.preventDefault();
-                dispatch({ type: 'SET_TIMELINE_PLAYING', payload: !timeline.playing });
-                return;
-            }
-
-            const isArrowKey = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
-            if (isArrowKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-                e.preventDefault();
-                if (timeline.playing) {
-                    dispatch({ type: 'SET_TIMELINE_PLAYING', payload: false });
-                }
-                const step = 1;
-                let dx = 0, dy = 0;
-                if (e.key === 'ArrowUp') dy = -step;
-                if (e.key === 'ArrowDown') dy = step;
-                if (e.key === 'ArrowLeft') dx = -step;
-                if (e.key === 'ArrowRight') dx = step;
-
-                if (selectedPathNodes.length > 0) {
-                    selectedPathNodes.forEach(({ pathId, pointIndex }: { pathId: string; pointIndex: number }) => {
-                        const path = objects[pathId] as PathObject;
-                        if (path && !path.locked) {
-                            const originalPoint = path.points[pointIndex];
-                            const newPoint = { ...originalPoint, x: originalPoint.x + dx, y: originalPoint.y + dy };
-                            if (originalPoint.handleIn) {
-                                newPoint.handleIn = { x: originalPoint.handleIn.x + dx, y: originalPoint.handleIn.y + dy };
-                            }
-                            if (originalPoint.handleOut) {
-                                newPoint.handleOut = { x: originalPoint.handleOut.x + dx, y: originalPoint.handleOut.y + dy };
-                            }
-                            dispatch({ type: 'UPDATE_PATH_POINT', payload: { pathId, pointIndex, newPoint } });
-                        }
-                    });
-
-                } else if (selectedObjectIds.length > 0) {
-                    selectedObjectIds.forEach((id: string) => {
-                        const obj = objects[id];
-                        if (obj && !obj.locked) {
-                            dispatch({ type: 'UPDATE_OBJECTS', payload: { ids: [id], updates: { x: obj.x + dx, y: obj.y + dy } } });
-                        }
-                    });
-                }
-                dispatch({ type: 'COMMIT_DRAG' });
-                return;
-            }
-
-            if (e.ctrlKey || e.metaKey) {
-                if (e.key.toLowerCase() === 'z') {
-                    if (e.shiftKey) {
-                        dispatch({ type: 'REDO' });
-                    } else {
-                        dispatch({ type: 'UNDO' });
-                    }
-                    e.preventDefault();
-                    return;
-                }
-                if (e.key.toLowerCase() === 'c') {
-                    dispatch({ type: 'COPY_SELECTION' });
-                } else if (e.key.toLowerCase() === 'x') {
-                    dispatch({ type: 'CUT_SELECTION' });
-                } else if (e.key.toLowerCase() === 'v') {
-                    dispatch({ type: 'PASTE_OBJECTS' });
-                } else if (e.key.toLowerCase() === 'd') {
-                    e.preventDefault();
-                    dispatch({ type: 'DUPLICATE_SELECTED_OBJECTS' });
-                }
-            }
-
-            if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-                switch (e.key.toLowerCase()) {
-                    case 'v':
-                        dispatch({ type: 'SET_TOOL', payload: 'select' });
-                        break;
-                    case 'a':
-                        dispatch({ type: 'SET_TOOL', payload: 'path-edit' });
-                        break;
-                }
-            }
-
-            if (e.key === 'Escape' && (currentTool === 'path-edit' || ui.isEditingGradient)) {
-                dispatch({ type: 'CLEAR_SELECTED_PATH_NODES' });
-                dispatch({ type: 'CLEAR_SELECTION' });
-                dispatch({ type: 'SET_EDITING_GRADIENT', payload: false });
-                e.preventDefault();
-            }
-
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (timeline.selection.keyIds && timeline.selection.keyIds.length > 0) {
-                    dispatch({ type: 'DELETE_SELECTED_KEYFRAMES' });
-                } else if (selectedObjectIds.length > 0) {
-                    dispatch({ type: 'DELETE_SELECTED' });
-                }
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [selectedObjectIds, dispatch, objects, currentTool, selectedPathNodes, ui.isEditingGradient, timeline.selection, state, timeline.playheadMs, timeline.playing]);
+    useCanvasShortcuts();
 
     const getSVGPoint = (e: { clientX: number; clientY: number }) => {
         const viewport = containerRef.current?.getBoundingClientRect();
@@ -1059,7 +971,7 @@ export default function Canvas() {
         const svg = svgRef.current;
         if (!svg) return;
 
-        if (currentTool === 'pan' || (e.button === 1 && currentTool !== 'pan')) {
+        if ((currentTool as string) === 'pan' || (e.button === 1 && (currentTool as string) !== 'pan')) {
             interactionStateRef.current = {
                 type: 'panning',
                 start: { x: e.clientX, y: e.clientY },
@@ -1214,15 +1126,16 @@ export default function Canvas() {
                 e.preventDefault();
                 e.stopPropagation();
 
-                if (hit.kind === 'handle') {
-                    dispatch({ type: 'SELECT_PATH_NODE', payload: { pathId, pointIndex: hit.pointIndex }, additive: true });
-                    const p0 = path.points[hit.pointIndex];
+                if (hit?.kind === 'handle') {
+                    const h = hit as Extract<typeof hit, { kind: 'handle' }>;
+                    dispatch({ type: 'SELECT_PATH_NODE', payload: { pathId, pointIndex: h.pointIndex }, additive: true });
+                    const p0 = path.points[h.pointIndex];
                     const originWorld = localToWorld(asPathSpace(path), p0, objects);
                     interactionStateRef.current = {
                         type: 'editing-handle',
                         pathId,
-                        pointIndex: hit.pointIndex,
-                        which: hit.which,
+                        pointIndex: h.pointIndex,
+                        which: h.which,
                         start: svgPoint,
                         origin: originWorld,
                         hasHistoryEntry: false,
@@ -1230,22 +1143,23 @@ export default function Canvas() {
                     return;
                 }
 
-                if (hit.kind === 'anchor') {
+                if (hit?.kind === 'anchor') {
+                    const h = hit as Extract<typeof hit, { kind: 'anchor' }>;
                     const additive = e.metaKey || e.ctrlKey || e.shiftKey;
                     const alreadySelected = (state.selectedPathNodes || []).some(
-                        n => n.pathId === pathId && n.pointIndex === hit.pointIndex
+                        n => n.pathId === pathId && n.pointIndex === h.pointIndex
                     );
 
                     let selectionAfterClick: Array<{ pathId: string; pointIndex: number }>;
                     if (additive) {
                         selectionAfterClick = alreadySelected
-                            ? (state.selectedPathNodes || []).filter(n => !(n.pathId === pathId && n.pointIndex === hit.pointIndex))
-                            : [...(state.selectedPathNodes || []), { pathId, pointIndex: hit.pointIndex }];
+                            ? (state.selectedPathNodes || []).filter(n => !(n.pathId === pathId && n.pointIndex === h.pointIndex))
+                            : [...(state.selectedPathNodes || []), { pathId, pointIndex: h.pointIndex }];
                     } else {
                         selectionAfterClick =
                             alreadySelected && (state.selectedPathNodes?.length ?? 0) > 0
                                 ? [...state.selectedPathNodes!]
-                                : [{ pathId, pointIndex: hit.pointIndex }];
+                                : [{ pathId, pointIndex: h.pointIndex }];
                     }
 
                     dispatch({ type: 'SET_SELECTED_PATH_NODES', payload: { nodes: selectionAfterClick } });
@@ -1272,7 +1186,7 @@ export default function Canvas() {
                     return;
                 }
 
-                if (hit.kind === 'segment') {
+                if (hit?.kind === 'segment') {
                     dispatch({ type: 'SELECT_OBJECT', payload: { id: pathId, shiftKey: e.shiftKey } });
                     return;
                 }
@@ -1384,6 +1298,7 @@ export default function Canvas() {
             const newObjectId = nanoid();
             const commonProps = {
                 id: newObjectId,
+                layerId: newObjectId,
                 name: currentTool.charAt(0).toUpperCase() + currentTool.slice(1),
                 x: svgPoint.x,
                 y: svgPoint.y,
@@ -1480,9 +1395,9 @@ export default function Canvas() {
             }
             if (currentTool === 'pen' || currentTool === 'path-edit' || currentTool === 'add-node' || currentTool === 'remove-node') {
                 const best = findBestPathHit(svgPoint, canvas.zoom, objects, zStack, selectedObjectIds);
-                if (best?.hit.kind === 'segment' && currentTool === 'add-node') {
+                if (best?.hit?.kind === 'segment' && currentTool === 'add-node') {
                     setCursor('crosshair'); // Placeholder for add icon
-                } else if (best?.hit.kind === 'anchor' && currentTool === 'remove-node') {
+                } else if (best?.hit?.kind === 'anchor' && currentTool === 'remove-node') {
                     setCursor('crosshair'); // Placeholder for remove icon
                 }
                 else {
@@ -1802,7 +1717,7 @@ export default function Canvas() {
                 const isGroup = originalObjects.size > 1 || Array.from(originalObjects.values()).some(o => o.type === 'group');
                 const delta = { x: dx, y: dy };
                 const modifiers = {
-                    shift: shouldConstrain,
+                    shift: !!shouldConstrain,
                     alt: e.altKey,
                     ctrl: e.metaKey || e.ctrlKey,
                 };
@@ -2011,141 +1926,7 @@ export default function Canvas() {
     }
 
     // Zoom and Scroll Logic
-    useEffect(() => {
-        if (!zoomActionsRef) return;
-
-        const getViewport = () => containerRef.current?.getBoundingClientRect() || null;
-
-        zoomActionsRef.current = {
-            zoomIn: () => {
-                const nextZoom = [0.5, 1, 1.5, 2].find(level => level > canvas.zoom);
-                zoomActionsRef.current?.setZoom(nextZoom || canvas.zoom * 2);
-            },
-            zoomOut: () => {
-                const nextZoom = [...[0.5, 1, 1.5, 2]].reverse().find(level => level < canvas.zoom);
-                zoomActionsRef.current?.setZoom(nextZoom || canvas.zoom / 2);
-            },
-            setZoom: (newZoom: number) => {
-                const viewport = getViewport();
-                if (!viewport) return;
-
-                const { zoom: oldZoom, pan: oldPan } = canvas;
-
-                const canvasPointAtCenter = {
-                    x: (viewport.width / 2 - (oldPan?.x || 0)) / oldZoom,
-                    y: (viewport.height / 2 - (oldPan?.y || 0)) / oldZoom,
-                };
-
-                const newPanX = viewport.width / 2 - canvasPointAtCenter.x * newZoom;
-                const newPanY = viewport.height / 2 - canvasPointAtCenter.y * newZoom;
-
-                dispatch({
-                    type: 'UPDATE_CANVAS',
-                    payload: {
-                        zoom: newZoom,
-                        pan: { x: newPanX, y: newPanY },
-                    }
-                });
-            },
-            zoomToFit: () => {
-                const viewport = getViewport();
-                if (!viewport) return;
-
-                const PADDING = 80;
-                const { width: canvasWidth, height: canvasHeight } = canvas;
-
-                const scaleX = (viewport.width - PADDING) / canvasWidth;
-                const scaleY = (viewport.height - PADDING) / canvasHeight;
-
-                const newZoom = Math.max(0.01, Math.min(scaleX, scaleY));
-
-                const newPanX = (viewport.width - canvasWidth * newZoom) / 2;
-                const newPanY = (viewport.height - canvasHeight * newZoom) / 2;
-
-                dispatch({
-                    type: 'UPDATE_CANVAS',
-                    payload: {
-                        zoom: newZoom,
-                        pan: { x: newPanX, y: newPanY },
-                    },
-                });
-            }
-        };
-
-        const handleWheel = (e: WheelEvent) => {
-            e.preventDefault();
-            if (e.ctrlKey || e.metaKey) {
-                const newZoom = Math.max(0.01, canvas.zoom - e.deltaY * 0.005);
-
-                const viewport = getViewport();
-                if (!viewport || !containerRef.current) return;
-
-                const mousePos = { x: e.clientX - viewport.left, y: e.clientY - viewport.top };
-
-                const { zoom: oldZoom, pan: oldPan } = canvas;
-
-                const canvasPointAtMouse = {
-                    x: (mousePos.x - (oldPan?.x || 0)) / oldZoom,
-                    y: (mousePos.y - (oldPan?.y || 0)) / oldZoom,
-                };
-
-                const newPanX = mousePos.x - canvasPointAtMouse.x * newZoom;
-                const newPanY = mousePos.y - canvasPointAtMouse.y * newZoom;
-
-                dispatch({
-                    type: 'UPDATE_CANVAS',
-                    payload: {
-                        zoom: newZoom,
-                        pan: { x: newPanX, y: newPanY },
-                    },
-                });
-            } else {
-                const { pan } = canvas;
-                dispatch({
-                    type: 'UPDATE_CANVAS',
-                    payload: {
-                        pan: {
-                            x: (pan?.x || 0) - e.deltaX,
-                            y: (pan?.y || 0) - e.deltaY,
-                        }
-                    }
-                });
-            }
-        };
-
-        const container = containerRef.current;
-        container?.addEventListener('wheel', handleWheel, { passive: false });
-        return () => {
-            container?.removeEventListener('wheel', handleWheel);
-        };
-    }, [canvas.zoom, dispatch, zoomActionsRef, canvas, canvas.pan]);
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey || e.metaKey) {
-                switch (e.key) {
-                    case '=':
-                    case '+':
-                        e.preventDefault();
-                        zoomActionsRef.current?.zoomIn();
-                        break;
-                    case '-':
-                        e.preventDefault();
-                        zoomActionsRef.current?.zoomOut();
-                        break;
-                    case '0':
-                        e.preventDefault();
-                        zoomActionsRef.current?.zoomToFit();
-                        break;
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [zoomActionsRef]);
+    useCanvasZoom(containerRef, zoomActionsRef);
 
     const commonAnchor = getCommonAnchorValue();
     let anchorPointCoords: { x: number; y: number; } | null = null;
@@ -2239,7 +2020,7 @@ export default function Canvas() {
     const isObjectVisible = (obj: SvgObject, timeMs: number): boolean => {
         if (obj.visible === false) return false;
 
-        const seg = selectActiveLayerSegment({ objects, timeline }, obj.id, timeMs);
+        const seg = selectActiveLayerSegment(state, obj.id, timeMs);
 
         let parentVisible = true;
         if (obj.parentId) {

@@ -1,9 +1,8 @@
-// @ts-nocheck
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useEditor } from '@/context/editor-context';
+import { useEditorStore } from '@/store';
 import type { InterpolationType, PropertyId } from '@/types/editor';
 import { cn } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
@@ -19,7 +18,8 @@ interface Props {
 }
 
 export function ManualContextMenu({ x, y, keyframeId, objectId, propertyId, onClose }: Props) {
-    const { state, dispatch } = useEditor();
+    const timeline = useEditorStore(state => state.present.timeline);
+    const dispatch = useEditorStore(state => state.dispatch);
     const ref = useRef<HTMLDivElement>(null);
     const [mounted, setMounted] = useState(false);
     const [editingCurve, setEditingCurve] = useState(false);
@@ -51,14 +51,14 @@ export function ManualContextMenu({ x, y, keyframeId, objectId, propertyId, onCl
     }, [onClose]);
 
     const getKeysToUpdate = () => {
-        const selectedKeyIds = state.timeline.selection?.keyIds ?? [];
+        const selectedKeyIds = timeline.selection?.keyIds ?? [];
         const isTargetSelected = selectedKeyIds.includes(keyframeId);
 
         let keysToUpdate: { objectId: string; propertyId: PropertyId; keyframeId: string }[] = [];
 
         if (isTargetSelected) {
             // Find all selected keyframes across all layers
-            for (const [layerId, layer] of Object.entries(state.timeline.layers)) {
+            for (const [layerId, layer] of Object.entries(timeline.layers)) {
                 if (!layer || !layer.properties) continue;
                 for (const track of layer.properties) {
                     for (const kf of track.keyframes) {
@@ -106,7 +106,7 @@ export function ManualContextMenu({ x, y, keyframeId, objectId, propertyId, onCl
 
     if (editingCurve) {
         // Find current values
-        const layer = state.timeline.layers[objectId];
+        const layer = timeline.layers[objectId];
         const track = layer?.properties.find(p => p.id === propertyId);
         const kf = track?.keyframes.find(k => k.id === keyframeId);
         const currentCP = kf?.controlPoints;

@@ -1,14 +1,13 @@
-// @ts-nocheck
 'use client';
 
-import { useMemo, useRef } from "react";
-import { useEditor } from "@/context/editor-context";
+import { useMemo, useRef, memo } from "react";
+import { useEditorStore } from "@/store";
 import { msToX, pxToMs } from "@/lib/anim/utils";
 import type { PropertyId, Keyframe as KeyframeType } from "@/types/editor";
 import { Keyframe } from "./keyframe";
 import { cn } from "@/lib/utils";
 
-export function PropertyTrackRow({
+export const PropertyTrackRow = memo(({
   objectId,
   propertyId,
   rowHeight,
@@ -22,9 +21,10 @@ export function PropertyTrackRow({
   originMs: number,
   msPerPx: number,
   onKeyframeContextMenu?: (e: React.MouseEvent, id: string, objectId: string, propertyId: PropertyId) => void;
-}) {
-  const { state, dispatch } = useEditor();
-  const { timeline, objects } = state;
+}) => {
+  const dispatch = useEditorStore(state => state.dispatch);
+  const timeline = useEditorStore(state => state.present.timeline);
+  const objects = useEditorStore(state => state.present.objects);
   const layerTrack = timeline.layers[objectId];
 
   const dragInfoRef = useRef<{
@@ -59,7 +59,7 @@ export function PropertyTrackRow({
     e.preventDefault();
     e.stopPropagation();
 
-    if (state.timeline.playing) {
+    if (timeline.playing) {
       dispatch({ type: 'SET_TIMELINE_PLAYING', payload: false });
     }
 
@@ -80,7 +80,7 @@ export function PropertyTrackRow({
     }
 
     const originalKeyframes: Array<{ id: string; timeMs: number; objectId: string; propertyId: PropertyId }> = [];
-    for (const [layerObjectId, layer] of Object.entries(state.timeline.layers)) {
+    for (const [layerObjectId, layer] of Object.entries(timeline.layers)) {
       if (!layer) continue;
       for (const track of layer.properties) {
         for (const kf of track.keyframes) {
@@ -103,7 +103,7 @@ export function PropertyTrackRow({
       const dx = moveEvent.clientX - drag.startX;
       const rawDeltaMs = dx * msPerPx;
 
-      const step = state.timeline.ui.snapStepMs ?? 1;
+      const step = timeline.ui.snapStepMs ?? 1;
       const dMs = Math.round(rawDeltaMs / step) * step;
 
       const moves = drag.originalKeyframes.map(kf => ({
@@ -216,4 +216,5 @@ export function PropertyTrackRow({
       )}
     </div>
   );
-}
+});
+PropertyTrackRow.displayName = "PropertyTrackRow";

@@ -1,11 +1,10 @@
-// @ts-nocheck
 
-import type { RootState, ClipSegment, SvgObject, PropertyId } from "@/types/editor";
+import type { EditorState, ClipSegment, SvgObject, PropertyId } from "@/types/editor";
 import { getLayerClipSafe } from "./group-clip";
 
 
 // Devuelve el segmento activo de un layer (no propiedad) en t
-export function selectActiveLayerSegment(state: RootState, objectId: string, tMs: number): ClipSegment | null {
+export function selectActiveLayerSegment(state: EditorState, objectId: string, tMs: number): ClipSegment | null {
   const clip = getLayerClipSafe(state, objectId);
   if (!clip || !clip.segments || clip.segments.length === 0) return null;
 
@@ -22,7 +21,7 @@ export function selectActiveLayerSegment(state: RootState, objectId: string, tMs
 }
 
 // Para propiedades: podrías tener clips por propiedad; si aún no existen, hereda del layer
-export function selectActivePropertySegment(state: RootState, objectId: string, propertyId: PropertyId, tMs: number): ClipSegment | null {
+export function selectActivePropertySegment(state: EditorState, objectId: string, propertyId: PropertyId, tMs: number): ClipSegment | null {
   const rowClip = getLayerClipSafe(state, objectId);
   // Si ya tienes clips por propiedad, reemplaza la línea anterior por getPropertyClipSafe(state, objectId, propertyId)
   if (!rowClip?.segments?.length) return null;
@@ -39,7 +38,7 @@ export function toLocalTime(seg: ClipSegment, tGlobal: number): number {
   return inMs + (tGlobal - seg.startMs) * speed;
 }
 
-export function selectVirtualRange(state: RootState) {
+export function selectVirtualRange(state: EditorState) {
   let minStart = 0;
   let maxEnd = state.timeline.durationMs; // fallback
   let hasAny = false;

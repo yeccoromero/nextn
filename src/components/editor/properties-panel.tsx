@@ -1,16 +1,18 @@
-// @ts-nocheck
 
 
 'use client';
 
 import { useEditor } from '@/context/editor-context';
-import type { SvgObject, RectangleObject, EllipseObject, StarObject, TextObject, PolygonObject, AnchorPosition, AlignmentType, PathObject, Fill, LinearGradientFill, RadialGradientFill, GradientStop, PropertyId, KeyValue, BendItEffect } from '@/types/editor';
+import { useEditorStore } from '@/store';
+import type { SvgObject, RectangleObject, EllipseObject, StarObject, TextObject, PolygonObject, AnchorPosition, AlignmentType, PathObject, Fill, LinearGradientFill, RadialGradientFill, GradientStop, PropertyId, KeyValue, BendItEffect, WarpEffect } from '@/types/editor';
 import { LayoutGrid, Link as LinkIcon, Link2Off, Timer, Diamond, Sparkles } from 'lucide-react';
 import { BendItControls } from '@/components/effects/BendItControls';
+import { WarpControls } from '@/components/effects/WarpControls';
 import { degToRad } from '@/lib/effects/bend-math';
+import { defaultWarpEffect } from '@/lib/effects/warp-math';
 import { Button } from '../ui/button';
 import { cn } from "@/lib/utils";
-import { getOverallBBox, getWorldAnchor, getOrientedBoundingBox } from '@/lib/editor-utils';
+import { getOverallBBox, getWorldAnchor, getOrientedBBox } from '@/lib/editor-utils';
 import { scaleAroundWorldPivot } from '@/lib/geometry';
 import {
   Select,
@@ -106,10 +108,104 @@ const useAvailableHeight = (timelineHeight: number = 200) => {
   return { containerRef, availableHeight };
 };
 
+// — Helpers for timecode format HH:MM:SS ——————————————————————
+function msToTimecode(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return [h, m, s].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+function timecodeToMs(tc: string): number | null {
+  // Accept H:MM:SS, MM:SS, or plain seconds
+  const parts = tc.trim().split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) return ((parts[0] * 3600) + (parts[1] * 60) + parts[2]) * 1000;
+  if (parts.length === 2) return ((parts[0] * 60) + parts[1]) * 1000;
+  if (parts.length === 1) return parts[0] * 1000;
+  return null;
+}
+
+interface TimecodeFieldProps {
+  durationMs: number;
+  fps: number;
+  onDurationChange: (ms: number) => void;
+  onFpsChange: (fps: number) => void;
+}
+
+const TimecodeField = ({ durationMs, fps, onDurationChange, onFpsChange }: TimecodeFieldProps) => {
+  const [tcValue, setTcValue] = useState(() => msToTimecode(durationMs));
+  const [fpsValue, setFpsValue] = useState(() => String(fps));
+  const [tcFocused, setTcFocused] = useState(false);
+  const [fpsFocused, setFpsFocused] = useState(false);
+
+  // Sync from outside when not editing
+  useEffect(() => { if (!tcFocused) setTcValue(msToTimecode(durationMs)); }, [durationMs, tcFocused]);
+  useEffect(() => { if (!fpsFocused) setFpsValue(String(fps)); }, [fps, fpsFocused]);
+
+  const commitTimecode = () => {
+    const ms = timecodeToMs(tcValue);
+    if (ms !== null && ms >= 1000) {
+      onDurationChange(ms);
+      setTcValue(msToTimecode(ms));
+    } else {
+      setTcValue(msToTimecode(durationMs)); // revert
+    }
+    setTcFocused(false);
+  };
+
+  const commitFps = () => {
+    const n = parseInt(fpsValue, 10);
+    if (!isNaN(n) && n >= 1 && n <= 120) {
+      onFpsChange(n);
+    } else {
+      setFpsValue(String(fps)); // revert
+    }
+    setFpsFocused(false);
+  };
+
+  return (
+    <div className="flex h-10 w-full rounded-md border border-input bg-transparent items-center min-w-0 overflow-hidden">
+      {/* Duration */}
+      <div className="flex items-center gap-2 px-3 min-w-0 flex-1">
+        <Timer className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <input
+          type="text"
+          value={tcValue}
+          className="bg-transparent border-none outline-none text-sm font-mono tracking-wider w-full text-foreground min-w-0"
+          placeholder="00:00:00"
+          onFocus={() => setTcFocused(true)}
+          onBlur={commitTimecode}
+          onChange={(e) => setTcValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        />
+      </div>
+      {/* Divider */}
+      <div className="h-5 w-px bg-border shrink-0" />
+      {/* FPS */}
+      <div className="flex items-center gap-1.5 px-3 shrink-0">
+        <span className="text-xs font-medium text-muted-foreground">FPS</span>
+        <input
+          type="text"
+          value={fpsValue}
+          className="bg-transparent border-none outline-none text-sm font-mono tracking-wider w-8 text-foreground text-right"
+          onFocus={() => setFpsFocused(true)}
+          onBlur={commitFps}
+          onChange={(e) => setFpsValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const SceneProperties = () => {
-  const { state, dispatch } = useEditor();
-  if (!state) return null;
-  const { canvas, timeline } = state;
+
+  const canvas = useEditorStore(state => state.present.canvas);
+  const timeline = useEditorStore(state => state.present.timeline);
+  const dispatch = useEditorStore(state => state.dispatch);
+
   const [lastSolidColor, setLastSolidColor] = useState(() => canvas.background === 'transparent' ? '#FFFFFF' : canvas.background);
 
   const handleCanvasPropertyChange = (prop: 'width' | 'height', value: number) => {
@@ -126,11 +222,11 @@ const SceneProperties = () => {
     }
   };
 
-  const handleBackgroundChange = (color: string) => {
-    if (color !== 'transparent') {
+  const handleBackgroundChange = (color: string | Fill) => {
+    if (color !== 'transparent' && typeof color === 'string') {
       setLastSolidColor(color);
     }
-    dispatch({ type: 'UPDATE_CANVAS', payload: { background: color } });
+    dispatch({ type: 'UPDATE_CANVAS', payload: { background: color as any } });
   }
 
   const handlePresetChange = (value: string) => {
@@ -238,36 +334,12 @@ const SceneProperties = () => {
 
           <div>
             <p className="text-xs font-bold mb-2">Time</p>
-            <div className="flex h-10 w-full rounded-md border border-input items-center min-w-0">
-              <div className="flex-1 flex items-center gap-2 px-3 min-w-0">
-                <Timer className="h-4 w-4 text-muted-foreground shrink-0" />
-                <SliderInput
-                  tooltip="Duration"
-                  value={timeline.durationMs / 1000}
-                  onChange={(v) => dispatch({ type: 'SET_TIMELINE_DURATION', payload: v * 1000 })}
-                  onCommit={() => dispatch({ type: 'COMMIT_DRAG' })}
-                  min={1}
-                  max={300}
-                  className="border-0 focus-within:ring-0 hover:bg-transparent"
-                  prefix=""
-                />
-                <span>s</span>
-              </div>
-              <div className="h-full w-px bg-border shrink-0" />
-              <div className="flex-1 flex items-center gap-2 px-3 min-w-0">
-                <span className="text-sm font-medium text-muted-foreground shrink-0">FPS</span>
-                <SliderInput
-                  tooltip="Frames per second"
-                  value={timeline.fps}
-                  onChange={(v) => dispatch({ type: 'SET_TIMELINE_FPS', payload: v })}
-                  onCommit={() => dispatch({ type: 'COMMIT_DRAG' })}
-                  min={1}
-                  max={120}
-                  className="border-0 focus-within:ring-0 hover:bg-transparent"
-                  prefix=""
-                />
-              </div>
-            </div>
+            <TimecodeField
+              durationMs={timeline.durationMs}
+              fps={timeline.fps}
+              onDurationChange={(ms) => { dispatch({ type: 'SET_TIMELINE_DURATION', payload: ms }); dispatch({ type: 'COMMIT_DRAG' }); }}
+              onFpsChange={(fps) => { dispatch({ type: 'SET_TIMELINE_FPS', payload: fps }); dispatch({ type: 'COMMIT_DRAG' }); }}
+            />
           </div>
 
           <div className="h-8" />
@@ -278,16 +350,18 @@ const SceneProperties = () => {
 };
 
 const ObjectProperties = () => {
-  const { state, dispatch } = useEditor();
-  if (!state) return null;
+  const selectedObjectIds = useEditorStore(state => state.present.selectedObjectIds);
+  const objects = useEditorStore(state => state.present.objects);
+  const canvas = useEditorStore(state => state.present.canvas);
+  const timeline = useEditorStore(state => state.present.timeline);
+  const dispatch = useEditorStore(state => state.dispatch);
 
+  const stateForSelectors = useEditorStore(state => state.present);
   const selectSelectedObjects = useMemo(createSelectSelectedObjects, []);
   const selectOverallBBox = useMemo(createSelectOverallBBox, []);
 
-  const selectedObjects = selectSelectedObjects(state);
-  const overallBBox = selectOverallBBox(state);
-
-  const { selectedObjectIds, objects, canvas, timeline } = state;
+  const selectedObjects = selectSelectedObjects({ ...stateForSelectors, selectedObjectIds, objects });
+  const overallBBox = selectOverallBBox({ ...stateForSelectors, selectedObjectIds, objects });
   const firstObject = selectedObjects[0];
   const [isCornersExpanded, setIsCornersExpanded] = useState(false);
 
@@ -375,7 +449,7 @@ const ObjectProperties = () => {
     if (startStrokeRef.current === null) {
       startStrokeRef.current = strokeValue === MIXED ? null : strokeValue;
     }
-    handlePropertyChange({ stroke: color });
+    handlePropertyChange({ stroke: color as any });
   };
   const onStrokeCommit = () => {
     handleCommit('stroke', startStrokeRef.current ?? undefined);
@@ -457,8 +531,54 @@ const ObjectProperties = () => {
     });
   };
 
+  const handleScaleChange = (scaleFactor: number, isX: boolean, isY: boolean) => {
+    const overallBBox = selectOverallBBox({ ...stateForSelectors, selectedObjectIds, objects });
+    if (!overallBBox) return;
+
+    let center: { x: number; y: number };
+
+    if (selectedObjects.length === 1 && selectedObjects[0]) {
+      center = getWorldAnchor(selectedObjects[0], objects);
+    } else {
+      center = { x: overallBBox.cx, y: overallBBox.cy };
+    }
+
+    const constrained = getCommonBooleanValue('isConstrained') === true;
+
+    selectedObjectIds.forEach(id => {
+      const obj = objects[id];
+      if (!obj || obj.locked) return;
+
+      const currentScaleX = obj.scaleX ?? 1;
+      const currentScaleY = obj.scaleY ?? 1;
+
+      let newScaleX = currentScaleX;
+      let newScaleY = currentScaleY;
+
+      if (constrained) {
+        newScaleX *= scaleFactor;
+        newScaleY *= scaleFactor;
+      } else {
+        if (isX) {
+          newScaleX *= scaleFactor;
+        }
+        if (isY) {
+          newScaleY *= scaleFactor;
+        }
+      }
+
+      const updates = scaleAroundWorldPivot(obj, newScaleX, newScaleY, center, objects);
+
+      dispatch({
+        type: 'UPDATE_OBJECTS',
+        payload: { ids: [id], updates },
+        transient: true
+      });
+    });
+  };
+
   const handleRotationChange = (angle: number) => {
-    const overallBBox = selectOverallBBox(state);
+    const overallBBox = selectOverallBBox({ ...stateForSelectors, selectedObjectIds, objects });
     if (!overallBBox) return;
 
     let center: { x: number; y: number };
@@ -505,12 +625,15 @@ const ObjectProperties = () => {
     if (!isAllRects || !firstObject) return null;
 
     const rect = firstObject as RectangleObject;
-    const corners = getCommonValue('corners') as RectangleObject['corners'] | typeof MIXED;
-    const isLinked = getCommonBooleanValue('cornersLinked') !== false;
+    const corners = getCommonValue('corners' as any) as RectangleObject['corners'] | typeof MIXED;
+    const isLinked = getCommonBooleanValue('cornersLinked' as any) !== false;
+
+    const rectWidth = ('width' in rect) ? rect.width : 0;
+    const rectHeight = ('height' in rect) ? rect.height : 0;
 
     // Calculate max radius based on the scaled dimensions
-    const scaledWidth = Math.abs((rect.width ?? 0) * (rect.scaleX ?? 1));
-    const scaledHeight = Math.abs((rect.height ?? 0) * (rect.scaleY ?? 1));
+    const scaledWidth = Math.abs((rectWidth ?? 0) * (rect.scaleX ?? 1));
+    const scaledHeight = Math.abs((rectHeight ?? 0) * (rect.scaleY ?? 1));
     const maxR = Math.min(scaledWidth, scaledHeight) / 2;
 
     const effectiveRadius = rect.isPillShape ? maxR : corners === MIXED ? 0 : corners?.tl ?? 0;
@@ -522,7 +645,7 @@ const ObjectProperties = () => {
         corners: { tl: R, tr: R, br: R, bl: R },
         cornersLinked: true,
         isPillShape: isPill,
-      });
+      } as any);
     };
 
     const handleIndividualCornerChange = (corner: keyof NonNullable<RectangleObject['corners']>, v: number) => {
@@ -530,12 +653,12 @@ const ObjectProperties = () => {
       const currentCorners = corners === MIXED ? { tl: 0, tr: 0, br: 0, bl: 0 } : corners || { tl: 0, tr: 0, br: 0, bl: 0 };
       const newCorners = { ...currentCorners, [corner]: R };
 
-      handlePropertyChange({ corners: newCorners, isPillShape: false });
+      handlePropertyChange({ corners: newCorners, isPillShape: false } as any);
     };
 
     const onPrefixClick = () => {
       setIsCornersExpanded(true);
-      handlePropertyChange({ cornersLinked: false });
+      handlePropertyChange({ cornersLinked: false } as any);
     };
 
     return (
@@ -559,10 +682,10 @@ const ObjectProperties = () => {
               <FourCornersIcon className="h-5 w-5" />
             </Button>
             <div className="grid grid-cols-2 gap-1 w-full">
-              <SliderInput variant="icon" prefix={<CornerTopLeft />} value={(corners as any)?.tl ?? 0} onChange={v => handleIndividualCornerChange('tl', v)} onCommit={(startValue) => handleCommit("corners", startValue)} min={0} max={maxR} />
-              <SliderInput variant="icon" prefix={<CornerTopRight />} value={(corners as any)?.tr ?? 0} onChange={v => handleIndividualCornerChange('tr', v)} onCommit={(startValue) => handleCommit("corners", startValue)} min={0} max={maxR} />
-              <SliderInput variant="icon" prefix={<CornerBottomLeft />} value={(corners as any)?.bl ?? 0} onChange={v => handleIndividualCornerChange('bl', v)} onCommit={(startValue) => handleCommit("corners", startValue)} min={0} max={maxR} />
-              <SliderInput variant="icon" prefix={<CornerBottomRight />} value={(corners as any)?.br ?? 0} onChange={v => handleIndividualCornerChange('br', v)} onCommit={(startValue) => handleCommit("corners", startValue)} min={0} max={maxR} />
+              <SliderInput variant="icon" tooltip="Top Left" prefix={<CornerTopLeft />} value={(corners as any)?.tl ?? 0} onChange={v => handleIndividualCornerChange('tl', v)} onCommit={(startValue) => handleCommit("corners", startValue)} min={0} max={maxR} />
+              <SliderInput variant="icon" tooltip="Top Right" prefix={<CornerTopRight />} value={(corners as any)?.tr ?? 0} onChange={v => handleIndividualCornerChange('tr', v)} onCommit={(startValue) => handleCommit("corners", startValue)} min={0} max={maxR} />
+              <SliderInput variant="icon" tooltip="Bottom Left" prefix={<CornerBottomLeft />} value={(corners as any)?.bl ?? 0} onChange={v => handleIndividualCornerChange('bl', v)} onCommit={(startValue) => handleCommit("corners", startValue)} min={0} max={maxR} />
+              <SliderInput variant="icon" tooltip="Bottom Right" prefix={<CornerBottomRight />} value={(corners as any)?.br ?? 0} onChange={v => handleIndividualCornerChange('br', v)} onCommit={(startValue) => handleCommit("corners", startValue)} min={0} max={maxR} />
             </div>
           </div>
         )}
@@ -909,8 +1032,14 @@ const ObjectProperties = () => {
               } else {
                 const defaultBend: BendItEffect = {
                   enabled: true,
-                  start: { x: (firstObject.x || 0), y: (firstObject.y || 0) + (firstObject.height || 100) / 2 },
-                  end: { x: (firstObject.x || 0) + (firstObject.width || 100), y: (firstObject.y || 0) + (firstObject.height || 100) / 2 },
+                  start: {
+                    x: firstObject.x || 0,
+                    y: (firstObject.y || 0) + (('height' in firstObject) ? (firstObject.height as number) : 100) / 2
+                  },
+                  end: {
+                    x: (firstObject.x || 0) + (('width' in firstObject) ? (firstObject.width as number) : 100),
+                    y: (firstObject.y || 0) + (('height' in firstObject) ? (firstObject.height as number) : 100) / 2
+                  },
                   theta: degToRad(45),
                   prestart: 'static',
                   postEnd: 'extended'
@@ -943,6 +1072,49 @@ const ObjectProperties = () => {
                     onCommit={(specificPropId) => {
                       // mapping generic commit to specific prop id if passed
                       // if nothing passed, we might fallback or handle differently
+                      if (specificPropId) handleCommit(specificPropId as any);
+                    }}
+                    isAnimated={isPropertyAnimated}
+                    onToggleAnimation={togglePropertyAnimation}
+                  />
+                )}
+              </div>
+            );
+          })()}
+          {/* === WARP EFFECT === */}
+          {(() => {
+            if (selectedObjects.length !== 1 || !firstObject) return null;
+            const hasWarp = !!firstObject.warp?.enabled;
+
+            const toggleWarp = () => {
+              if (hasWarp) {
+                handlePropertyChange({ warp: { ...firstObject.warp!, enabled: false } });
+              } else {
+                const newWarp = firstObject.warp ? { ...firstObject.warp, enabled: true } : defaultWarpEffect();
+                handlePropertyChange({ warp: newWarp });
+              }
+            };
+
+            const warpEffect = hasWarp ? firstObject.warp! : null;
+
+            return (
+              <div className="space-y-2 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold flex items-center gap-2">
+                    <Sparkles className="h-3 w-3" />
+                    Warp
+                  </p>
+                  <Button variant={hasWarp ? "secondary" : "ghost"} size="sm" className="h-6 text-[10px]" onClick={toggleWarp}>
+                    {hasWarp ? "Warp On" : "Add Warp"}
+                  </Button>
+                </div>
+                {warpEffect && (
+                  <WarpControls
+                    params={warpEffect}
+                    onChange={(newParams) => {
+                      handlePropertyChange({ warp: { ...warpEffect, ...newParams } });
+                    }}
+                    onCommit={(specificPropId) => {
                       if (specificPropId) handleCommit(specificPropId as any);
                     }}
                     isAnimated={isPropertyAnimated}

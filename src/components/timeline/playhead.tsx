@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useEditor } from '@/context/editor-context';
+import { useEditorStore } from '@/store';
 import { msToX } from '@/lib/anim/utils';
 import { formatTime } from './transport';
 
@@ -24,8 +24,7 @@ export function Playhead({
     onPointerMove?: React.PointerEventHandler<HTMLDivElement>;
     onPointerUp?: React.PointerEventHandler<HTMLDivElement>;
 }) {
-    const { state } = useEditor();
-    const { timeline } = state;
+    const timeline = useEditorStore(state => state.present.timeline);
     const { playheadMs, fps } = timeline;
 
     if (panelWidth <= 0 || msPerPx <= 0) return null;

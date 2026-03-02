@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { cn } from "@/lib/utils";
@@ -165,7 +164,7 @@ export const ColorPicker = ({ color, onChange, onCommit, className }: ColorPicke
 
   const handleGradientChange = (updates: Partial<LinearGradientFill> | Partial<RadialGradientFill>) => {
     if (typeof color !== 'string' && color) {
-      onChange({ ...color, ...updates });
+      onChange({ ...color, ...updates } as Fill);
     }
   };
 
@@ -392,7 +391,6 @@ export const ColorPicker = ({ color, onChange, onCommit, className }: ColorPicke
             </Popover>
             <Input
               value={activeStop?.color.replace('#', '') ?? ''}
-              onChange={e => activeStop && handleStopChange(activeStop.id, { color: `#${e.target.value}` })}
               onChange={e => activeStop && handleStopChange(activeStop.id, { color: `#${e.target.value}` })}
               onBlur={() => onCommit && onCommit()}
               onFocus={(e) => e.target.select()}

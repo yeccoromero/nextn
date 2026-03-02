@@ -1,15 +1,13 @@
-// @ts-nocheck
 'use client';
 
 import { useRef, useEffect, useState, RefObject } from 'react';
 import LayersTree from './layers-tree';
 import Ruler from './ruler';
 import TracksView from './tracks-view';
-import { useEditor } from '@/context/editor-context';
-import { getMsPerPx, msToX, pxToMs, BASE_PX_PER_SECOND } from '@/lib/anim/utils';
+import { useEditorStore } from '@/store';
+import { getMsPerPx, msToX, pxToMs, BASE_PX_PER_SECOND, formatTime } from '@/lib/anim/utils';
 import { clamp, cn } from '@/lib/utils';
-import { formatTime } from '@/lib/anim/time-utils';
-import { PropertyId, InterpolationType } from "@/types/editor";
+import { PropertyId, InterpolationType, LayerTrack } from "@/types/editor";
 import { GripVertical, Sparkles } from 'lucide-react';
 import { TimelineNavigator } from './timeline-navigator';
 import dynamic from 'next/dynamic';
@@ -57,8 +55,8 @@ function getSelectedTracks(state: any): { objectId: string, track: PropertyTrack
 import { Playhead } from './playhead';
 
 const WorkAreaControls = ({ innerWidth, originMs, msPerPx }: { innerWidth: number, originMs: number, msPerPx: number }) => {
-  const { state, dispatch } = useEditor();
-  const { timeline } = state;
+  const dispatch = useEditorStore(state => state.dispatch);
+  const timeline = useEditorStore(state => state.present.timeline);
   const { durationMs, playheadMs } = timeline;
   const wa = timeline.workArea ?? { startMs: 0, endMs: durationMs };
 
@@ -173,7 +171,10 @@ export default function TimelinePanel() {
   const layersScrollRef = useRef<HTMLDivElement>(null);
   const localTracksContainerRef = useRef<HTMLDivElement>(null);
 
-  const { state, dispatch } = useEditor();
+  const dispatch = useEditorStore(state => state.dispatch);
+  const timeline = useEditorStore(state => state.present.timeline);
+  const state = useEditorStore(state => state.present);
+
   const scrubRef = useRef(false);
   const [panelWidth, setPanelWidth] = useState(0);
   const [originMs, setOriginMs] = useState(0);
@@ -199,15 +200,7 @@ export default function TimelinePanel() {
 
 
 
-  // Mock state for hooks if loading
-  const timeline = state?.timeline || {
-    ui: { zoom: 1, snap: false, snapStepMs: 100 },
-    durationMs: 0,
-    playheadMs: 0,
-    fps: 30,
-    layers: {},
-    selection: { keyIds: [] }
-  } as any;
+
 
   const msPerPx = getMsPerPx(timeline.ui.zoom);
   const contentWidthPx = Math.max(panelWidth, timeline.durationMs / msPerPx);
@@ -245,7 +238,7 @@ export default function TimelinePanel() {
 
   useEffect(() => {
     const container = localTracksContainerRef.current;
-    if (!container) return;
+    if (!container || viewMode === 'graph') return;
 
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
@@ -279,7 +272,7 @@ export default function TimelinePanel() {
         container.removeEventListener('wheel', handleWheel);
       }
     };
-  }, [timeline.ui.zoom, dispatch, state]);
+  }, [timeline.ui.zoom, dispatch, state, viewMode]);
 
   useEffect(() => {
     const container = localTracksContainerRef.current;
@@ -389,7 +382,8 @@ export default function TimelinePanel() {
     let timeMs = pxToMs(x, originMs, msPerPx);
 
     if (state.timeline.ui.snap) {
-      const { snapStepMs, fps } = state.timeline.ui;
+      const { snapStepMs } = state.timeline.ui;
+      const fps = timeline.fps || 30;
       const step = snapStepMs ?? 1000 / fps;
       timeMs = Math.round(timeMs / step) * step;
     }

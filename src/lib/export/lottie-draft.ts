@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { TimelineState, SvgObject, Keyframe as AnimKeyframe, LayerTrack, PropertyTrack, PropertyId } from '@/types/editor';
 
 // Lottie-like types (simplified)
@@ -109,15 +108,17 @@ export function toLottieDraft(
     // For this stub, we'll just use the keyframes from 'x' and 'y' if they exist.
     // A full implementation would need to combine these tracks.
     const posKeyframes: LottieKeyframe[] = [];
-    const pTrack = positionKeys.x?.keyframes.length > positionKeys.y?.keyframes.length ? positionKeys.x : positionKeys.y;
+    const pTrack = (positionKeys.x?.keyframes?.length ?? 0) > (positionKeys.y?.keyframes?.length ?? 0) ? positionKeys.x : positionKeys.y;
 
-    for (let i = 0; i < pTrack.keyframes.length; i++) {
-      const kfX = positionKeys.x?.keyframes[i] || { value: obj.x, timeMs: pTrack.keyframes[i].timeMs };
-      const kfY = positionKeys.y?.keyframes[i] || { value: obj.y, timeMs: pTrack.keyframes[i].timeMs };
-      posKeyframes.push({
-        t: toLottieFrames(kfX.timeMs, model.fps),
-        s: [Number(kfX.value), Number(kfY.value)]
-      });
+    if (pTrack) {
+      for (let i = 0; i < pTrack.keyframes.length; i++) {
+        const kfX = positionKeys.x?.keyframes[i] || { value: (obj as any).x, timeMs: pTrack.keyframes[i].timeMs };
+        const kfY = positionKeys.y?.keyframes[i] || { value: (obj as any).y, timeMs: pTrack.keyframes[i].timeMs };
+        posKeyframes.push({
+          t: toLottieFrames(kfX.timeMs, model.fps),
+          s: [Number(kfX.value), Number(kfY.value)]
+        });
+      }
     }
 
     const lottieLayer: LottieLayer = {
@@ -131,7 +132,7 @@ export function toLottieDraft(
         // Anchor point needs to be converted to pixels and relative to layer
         a: { k: [0, 0] },
         // Position
-        p: posKeyframes.length > 1 ? { k: posKeyframes } : { k: [obj.x, obj.y] },
+        p: posKeyframes.length > 1 ? { k: posKeyframes } as any : { k: [(obj as any).x, (obj as any).y] },
         // Scale
         s: { k: [(obj.scaleX ?? 1) * 100, (obj.scaleY ?? 1) * 100] }, // Lottie scale is percentage
         // Rotation

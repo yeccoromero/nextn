@@ -1,4 +1,3 @@
-
 // @ts-nocheck
 // src/lib/anim/group-clip.ts
 import type { EditorState } from "@/types/editor";

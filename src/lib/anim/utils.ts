@@ -44,3 +44,20 @@ export const pxToMs = (
 ) => {
   return originMs + xPx * msPerPx;
 };
+
+/**
+ * Formats a time in milliseconds to a string HH:MM:SS:FF or SS:FF depending on requirements.
+ * Here we provide a simple implementation M:SS.ff
+ */
+export function formatTime(timeMs: number): string {
+  const totalSeconds = Math.max(0, timeMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  const milliseconds = Math.floor((totalSeconds % 1) * 100);
+
+  const mStr = minutes > 0 ? `${minutes}:` : '';
+  const sStr = minutes > 0 ? seconds.toString().padStart(2, '0') : seconds.toString();
+  const msStr = milliseconds.toString().padStart(2, '0');
+
+  return `${mStr}${sStr}.${msStr}`;
+}

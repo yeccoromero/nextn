@@ -1,4 +1,3 @@
-// @ts-nocheck
 import * as fabric from 'fabric';
 import { nanoid } from 'nanoid';
 import { SvgObject, GroupObject, RectangleObject, EllipseObject, PathObject, TextObject, BezierPoint } from '@/types/editor';
@@ -6,7 +5,7 @@ import { normalizePath } from './normalizePath';
 
 // Helpers: tamaño/centro absolutos y props de estilo
 const getCenterAndSize = (obj: fabric.FabricObject) => {
-    const br = obj.getBoundingRect(true, true);
+    const br = obj.getBoundingRect();
     return {
         cx: br.left + br.width / 2,
         cy: br.top + br.height / 2,
@@ -263,7 +262,7 @@ export const importSvgString = async (svgString: string): Promise<SvgObject[]> =
 
     const allImportedObjects = objects.flatMap((obj, idx) => {
         const el = Array.isArray(elements) ? (elements[idx] as any) : undefined;
-        const result = fabricToSvgObject(obj, layerId, el);
+        const result = fabricToSvgObject(obj as any, layerId, el);
         return result ? (Array.isArray(result) ? result : [result]) : [];
     });
 

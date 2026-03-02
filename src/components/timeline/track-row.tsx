@@ -1,10 +1,9 @@
-// @ts-nocheck
 
 'use client';
 
 import { memo, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { useEditor } from "@/context/editor-context";
+import { useEditorStore } from "@/store";
 import type { Clip } from "@/types/editor";
 import { msToX } from "@/lib/anim/utils";
 import { selectActiveLayerSegment } from "@/lib/anim/selectors";
@@ -38,7 +37,8 @@ export const TrackRow = memo(({
   onBeginResizeEnd?: (id: string, e: React.PointerEvent<HTMLDivElement>) => void;
   onBeginSlideTrack?: (id: string, e: React.PointerEvent) => void;
 }) => {
-  const { state, dispatch } = useEditor();
+  const dispatch = useEditorStore(state => state.dispatch);
+  const state = useEditorStore(state => state.present);
   const { timeline } = state;
 
   const isActive = !!selectActiveLayerSegment(state, layerId, state.timeline.playheadMs);

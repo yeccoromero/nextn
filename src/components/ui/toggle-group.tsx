@@ -17,56 +17,57 @@ const ToggleGroupContext = React.createContext<
 >({
   size: "default",
   variant: "default",
-  onValueChange: () => {},
+  onValueChange: () => { },
 });
 
 
 const ToggleGroup = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> &
-    VariantProps<typeof toggleVariants> & {
-      type: 'single' | 'multiple';
-      value?: string | string[];
-      onValueChange?: (value: string | string[]) => void;
-    }
+  VariantProps<typeof toggleVariants> & {
+    type: 'single' | 'multiple';
+    value?: string | string[];
+    onValueChange?: ((value: string) => void) | ((value: string[]) => void);
+  }
 >(({ className, variant, size, children, type, value, onValueChange, ...props }, ref) => {
-    const handleItemClick = (itemValue: string) => {
-        if (!onValueChange) return;
+  const handleItemClick = (itemValue: string) => {
+    if (!onValueChange) return;
 
-        if (type === 'single') {
-            onValueChange(value === itemValue ? "" : itemValue);
-        } else {
-            const currentValue = Array.isArray(value) ? value : [];
-            const newValue = currentValue.includes(itemValue)
-                ? currentValue.filter((v) => v !== itemValue)
-                : [...currentValue, itemValue];
-            onValueChange(newValue);
-        }
-    };
+    if (type === 'single') {
+      (onValueChange as (value: string) => void)(value === itemValue ? "" : itemValue);
+    } else {
+      const currentValue = Array.isArray(value) ? value : [];
+      const newValue = currentValue.includes(itemValue)
+        ? currentValue.filter((v) => v !== itemValue)
+        : [...currentValue, itemValue];
+      (onValueChange as (value: string[]) => void)(newValue);
+    }
+  };
 
-    return (
-        <div
-            ref={ref}
-            className={cn("flex items-center justify-center gap-1", className)}
-            {...props}
-        >
-            <ToggleGroupContext.Provider value={{ variant, size, value, onValueChange: handleItemClick }}>
-                {children}
-            </ToggleGroupContext.Provider>
-        </div>
-    )
+  return (
+    <div
+      ref={ref}
+      className={cn("flex items-center justify-center gap-1", className)}
+      {...props}
+    >
+      <ToggleGroupContext.Provider value={{ variant, size, value, onValueChange: handleItemClick }}>
+        {children}
+      </ToggleGroupContext.Provider>
+    </div>
+  )
 })
 ToggleGroup.displayName = "ToggleGroup"
 
 const ToggleGroupItem = React.forwardRef<
   React.ElementRef<typeof Toggle>,
   React.ComponentPropsWithoutRef<typeof Toggle> & {
-      value: string;
+    value: string;
+    "aria-label"?: string;
   }
 >(({ className, children, variant, size, value, ...props }, ref) => {
   const context = React.useContext(ToggleGroupContext)
-  const isSelected = Array.isArray(context.value) 
-    ? context.value.includes(value) 
+  const isSelected = Array.isArray(context.value)
+    ? context.value.includes(value)
     : context.value === value;
 
   return (

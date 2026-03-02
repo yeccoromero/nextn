@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { AnimeRuntimeApplyLegacy, easeValueLegacy } from './legacy-runtime';
 import { solveCubicBezier, solveSpatialCubic } from './math-core';
 import { Matrix3 } from './matrix';
@@ -247,12 +246,12 @@ export class AnimeRuntimeApply extends AnimeRuntimeApplyLegacy {
       // 1. Scale (`scale` has precedence over `scaleX`/`scaleY`)
       const scaleProp = objTracks.scale ? 'scale' : (objTracks.scaleX || objTracks.scaleY ? 'scaleX/Y' : null);
       if (scaleProp) {
-        const targetScaleX = scaleProp === 'scale' ? (base.scale as { x: number, y: number }).x : (objTracks.scaleX ? base.scaleX as number : state.scaleX ?? 1);
-        const targetScaleY = scaleProp === 'scale' ? (base.scale as { x: number, y: number }).y : (objTracks.scaleY ? base.scaleY as number : state.scaleY ?? 1);
+        const targetScaleX = scaleProp === 'scale' ? ((base as any).scale as { x: number, y: number }).x : (objTracks.scaleX ? base.scaleX as number : state.scaleX ?? 1);
+        const targetScaleY = scaleProp === 'scale' ? ((base as any).scale as { x: number, y: number }).y : (objTracks.scaleY ? base.scaleY as number : state.scaleY ?? 1);
         const pivotWorld = getWorldAnchor(state, objectsPrime);
         const sUpdates = scaleAroundWorldPivot(state, targetScaleX, targetScaleY, pivotWorld, objectsPrime);
-        patch = { ...patch, ...sUpdates };
-        state = { ...state, ...sUpdates };
+        patch = { ...patch, ...sUpdates } as Partial<SvgObject>;
+        state = { ...state, ...sUpdates } as SvgObject;
       }
 
       // 2. Rotation
@@ -260,19 +259,19 @@ export class AnimeRuntimeApply extends AnimeRuntimeApplyLegacy {
         const targetRot = (base.rotation ?? state.rotation ?? 0) as number;
         const pivotWorld = getWorldAnchor(state, objectsPrime); // uses updated state from scale
         const rUpdates = rotateAroundWorldPivot(state, targetRot, pivotWorld, objectsPrime);
-        patch = { ...patch, ...rUpdates };
-        state = { ...state, ...rUpdates }; // Update state for subsequent calculations
+        patch = { ...patch, ...rUpdates } as Partial<SvgObject>;
+        state = { ...state, ...rUpdates } as SvgObject; // Update state for subsequent calculations
       }
 
       // 3. Position (`position` track has precedence)
       if (objTracks.position) {
-        const posLocal = base.position as { x: number; y: number };
-        (patch as SvgObject).x = posLocal.x;
-        (patch as SvgObject).y = posLocal.y;
+        const posLocal = (base as any).position as unknown as { x: number; y: number };
+        (patch as any).x = posLocal.x;
+        (patch as any).y = posLocal.y;
       } else {
         // legacy support (optional)
-        if (objTracks.x) (patch as SvgObject).x = (base as any).x as number;
-        if (objTracks.y) (patch as SvgObject).y = (base as any).y as number;
+        if (objTracks.x) (patch as any).x = (base as any).x as number;
+        if (objTracks.y) (patch as any).y = (base as any).y as number;
       }
 
       // --- End of transform calculations ---
@@ -283,23 +282,33 @@ export class AnimeRuntimeApply extends AnimeRuntimeApplyLegacy {
           const val = (base as any)[propId];
 
           // Bend It Mappings
-          if (propId === 'bendAmount') {
-            // val is in radians (if keyframes store radians) OR degrees?
-            // The slider uses degrees but converts to radians for the object.
-            // Let's assume the Keyframe stores the RAW value from the object state, which is RADIANS.
-            // So we just pass it through.
-            patch.bend = { ...(state.bend || {}), ...patch.bend, theta: val as number };
+          if (propId === 'bend') {
+            patch.bend = { enabled: true, ...(state.bend || {}), ...(patch.bend as any || {}), theta: val as number } as any;
           } else if (propId === 'bendStart') {
-            patch.bend = { ...(state.bend || {}), ...patch.bend, start: val as { x: number, y: number } };
+            patch.bend = { enabled: true, ...(state.bend || {}), ...(patch.bend as any || {}), start: val as { x: number, y: number } } as any;
           } else if (propId === 'bendEnd') {
-            patch.bend = { ...(state.bend || {}), ...patch.bend, end: val as { x: number, y: number } };
+            patch.bend = { enabled: true, ...(state.bend || {}), ...(patch.bend as any || {}), end: val as { x: number, y: number } } as any;
+
+            // Warp Mappings
+          } else if (propId === 'bend') {
+            patch.warp = { ...(state.warp || {}), ...(patch.warp as any || {}), bend: val as number } as any;
+          } else if (propId === 'hDist') {
+            patch.warp = { ...(state.warp || {}), ...(patch.warp as any || {}), hDist: val as number } as any;
+          } else if (propId === 'vDist') {
+            patch.warp = { ...(state.warp || {}), ...(patch.warp as any || {}), vDist: val as number } as any;
+          } else if (propId === 'style') {
+            // Enum — uses Hold interpolation: val is already the correct string
+            patch.warp = { ...(state.warp || {}), ...(patch.warp as any || {}), style: val as any } as any;
+          } else if (propId === 'axis') {
+            // Enum — uses Hold interpolation: val is already the correct string
+            patch.warp = { ...(state.warp || {}), ...(patch.warp as any || {}), axis: val as any } as any;
           } else {
             (patch as any)[propId] = val;
           }
         }
       }
 
-      frameObjects[objectId] = { ...state, ...patch };
+      frameObjects[objectId] = { ...state, ...patch } as SvgObject;
 
       if (Object.keys(patch).length) {
         batch.push({ objectId, patch });

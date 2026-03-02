@@ -1,8 +1,8 @@
-// @ts-nocheck
 
 'use client';
 
 import { useEditor } from "@/context/editor-context";
+import { useEditorStore } from "@/store";
 import { LayerRow } from './layer-row';
 import { VectoriaLogo, CustomLayersIcon } from "../icons";
 import {
@@ -105,7 +105,9 @@ export const LayersPanel = () => {
 
     const rect = overEl.getBoundingClientRect();
 
-    const activeRect = active.rect.current.translated ?? active.rect.current;
+    const activeRect = active.rect.current.translated ?? active.rect.current.initial;
+    if (!activeRect) return;
+
     const pointerY = activeRect.top + activeRect.height / 2;
 
     const y = pointerY - rect.top;
@@ -228,11 +230,11 @@ export const LayersPanel = () => {
                 Export SVG
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => dispatch({ type: 'UNDO' })} disabled={!canUndo}>
+              <DropdownMenuItem onSelect={() => useEditorStore.getState().undo()} disabled={!canUndo}>
                 <Undo2 className="h-4 w-4 mr-2" />
                 Undo
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => dispatch({ type: 'REDO' })} disabled={!canRedo}>
+              <DropdownMenuItem onSelect={() => useEditorStore.getState().redo()} disabled={!canRedo}>
                 <Redo2 className="h-4 w-4 mr-2" />
                 Redo
               </DropdownMenuItem>
@@ -244,7 +246,7 @@ export const LayersPanel = () => {
             </DropdownMenuContent>
           </DropdownMenu>
           <h3 className="text-sm font-semibold group-data-[collapsible=icon]:hidden">Vectoria</h3>
-          <span className="text-xs text-muted-foreground font-mono group-data-[collapsible=icon]:hidden">v0.6.0</span>
+          <span className="text-xs text-muted-foreground font-mono group-data-[collapsible=icon]:hidden">v0.8.0</span>
           <div className="flex-1" />
           <SidebarTrigger className="group-data-[collapsible=icon]:hidden" />
         </div>

@@ -1,9 +1,9 @@
-// @ts-nocheck
 
 
 'use client';
 
 import { useEditor } from "@/context/editor-context";
+import { useEditorStore } from "@/store";
 import type { SvgObject, GroupObject, DropTarget, PropertyId, Keyframe as KeyframeType, EditorState, TimelineRow, PropertyTrack, EasingId, KeyValue, LayerTrack } from "@/types/editor";
 import {
   Square, Circle, Star, Type, Hexagon, Pencil, Group, ChevronDown, ChevronRight,
@@ -107,8 +107,9 @@ const PropertyRowUI = ({
   level: number;
   rowHeight: number;
 }) => {
-  const { state, dispatch } = useEditor();
-  const { objects, timeline } = state;
+  const dispatch = useEditorStore(state => state.dispatch);
+  const objects = useEditorStore(state => state.present.objects);
+  const timeline = useEditorStore(state => state.present.timeline);
   const object = objects[objectId];
   const [editingField, setEditingField] = useState<string | null>(null);
 
@@ -384,8 +385,8 @@ const PropertyRowUI = ({
       <div
         className={cn(
           "w-full",
-          "grid grid-cols-[1fr_auto_auto] items-center gap-2", // Adjusted grid
-          !isSelected && "bg-zinc-800/40 border border-white/5 rounded-sm", // Default background for property rows
+          "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1",
+          !isSelected && "bg-zinc-800/40 border border-white/5 rounded-sm",
           "hover:bg-zinc-700/50",
           isSelected && "bg-primary/10 border border-primary/20 rounded-sm",
           "px-2",
@@ -400,13 +401,13 @@ const PropertyRowUI = ({
           });
         }}
       >
-        <div className="min-w-0" onDoubleClick={(e) => e.stopPropagation()}>
-          <div className="text-[11px] leading-none text-muted-foreground/70">
+        <div className="min-w-0 overflow-hidden" onDoubleClick={(e) => e.stopPropagation()}>
+          <div className="text-[11px] leading-none text-muted-foreground/70 truncate">
             {formatPropLabel(propertyId)}
           </div>
         </div>
 
-        <div className="justify-self-end pr-2">
+        <div className="justify-self-end shrink-0">
           {renderValues()}
         </div>
 
@@ -528,8 +529,11 @@ const LayerRowUI = ({
   dropTarget: DropTarget | null;
   rowHeight: number;
 }) => {
-  const { state, dispatch } = useEditor();
-  const { selectedObjectIds, objects, editingLayerId, timeline } = state;
+  const dispatch = useEditorStore(state => state.dispatch);
+  const selectedObjectIds = useEditorStore(state => state.present.selectedObjectIds);
+  const objects = useEditorStore(state => state.present.objects);
+  const editingLayerId = useEditorStore(state => state.present.editingLayerId);
+  const timeline = useEditorStore(state => state.present.timeline);
   const object = objects[objectId];
 
   const [tempName, setTempName] = useState("");
@@ -792,8 +796,12 @@ const LayerRowUI = ({
 
 
 export default function LayersTree({ scrollRef }: { scrollRef: RefObject<HTMLDivElement>; }) {
-  const { state, dispatch } = useEditor();
-  const { timelineRows, objects, zStack, ui } = state;
+  const dispatch = useEditorStore(state => state.dispatch);
+  const timelineRows = useEditorStore(state => state.present.timelineRows);
+  const objects = useEditorStore(state => state.present.objects);
+  const zStack = useEditorStore(state => state.present.zStack);
+  const ui = useEditorStore(state => state.present.ui);
+
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -838,7 +846,9 @@ export default function LayersTree({ scrollRef }: { scrollRef: RefObject<HTMLDiv
 
     const rect = overEl.getBoundingClientRect();
 
-    const activeRect = active.rect.current.translated ?? active.rect.current;
+    const activeRect = active.rect.current.translated ?? active.rect.current.initial;
+    if (!activeRect) return;
+
     const pointerY = activeRect.top + activeRect.height / 2;
 
     const y = pointerY - rect.top;

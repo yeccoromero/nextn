@@ -1,11 +1,10 @@
-
 // @ts-nocheck
 'use client';
 
 import {
   Undo2, Redo2, Trash2, Download
 } from 'lucide-react';
-import { useEditor } from '@/context/editor-context';
+import { useEditorStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -20,7 +19,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Separator } from '../ui/separator';
 
 export default function Header() {
-  const { dispatch, canUndo, canRedo, selectedObjectIds } = useEditor();
+  const dispatch = useEditorStore(state => state.dispatch);
+  const selectedObjectIds = useEditorStore(state => state.present.selectedObjectIds);
+  const canUndo = useEditorStore(state => state.past.length > 0 || !!state.latestGroupId);
+  const canRedo = useEditorStore(state => state.future.length > 0);
 
   const handleExport = () => {
     // This is a placeholder for the actual export logic
@@ -33,8 +35,8 @@ export default function Header() {
     }
   };
 
-  const handleUndo = () => dispatch({ type: 'UNDO' });
-  const handleRedo = () => dispatch({ type: 'REDO' });
+  const handleUndo = () => useEditorStore.getState().undo();
+  const handleRedo = () => useEditorStore.getState().redo();
 
   return (
     <header className="flex h-16 items-center justify-between border-b px-4 shrink-0">
@@ -63,7 +65,7 @@ export default function Header() {
         </DropdownMenu>
 
         <span className="font-semibold text-lg">Vectoria</span>
-        <span className="text-xs text-zinc-500 font-mono hidden sm:inline-block">v0.6.0</span>
+        <span className="text-xs text-zinc-500 font-mono hidden sm:inline-block">v0.8.0</span>
         {process.env.NODE_ENV === 'development' && (
           <Badge variant="outline" className="text-[10px] h-4 px-1 py-0 ml-1 border-yellow-500/50 text-yellow-500 bg-yellow-500/10">
             DEV

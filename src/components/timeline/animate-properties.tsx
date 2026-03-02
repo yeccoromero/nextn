@@ -1,9 +1,8 @@
-// @ts-nocheck
 
 
 'use client';
 
-import { useEditor } from "@/context/editor-context";
+import { useEditorStore } from '@/store';
 import { Button } from "../ui/button";
 import { X, Link2 } from 'lucide-react';
 import { PropertyId } from "@/types/editor";
@@ -27,10 +26,9 @@ const ALL_PROPERTIES: { group: string; props: { id: PropertyId; name: string; sh
 ]
 
 export default function AnimateProperties({ objectId, onClose }: { objectId: string, onClose: () => void }) {
-    const { state, dispatch } = useEditor();
-    const { timeline, objects } = state;
-    const object = objects[objectId];
-    const layerTrack = timeline.layers[objectId];
+    const dispatch = useEditorStore(state => state.dispatch);
+    const object = useEditorStore(state => state.present.objects[objectId]);
+    const layerTrack = useEditorStore(state => state.present.timeline.layers[objectId]);
 
     if (!object) return null;
 

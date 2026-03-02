@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import * as React from "react"
@@ -58,7 +57,6 @@ const ContextMenuContent = React.forwardRef<
         className
       )}
       style={{ pointerEvents: 'auto' }}
-      sideOffset={4}
       {...props}
     />
   </ContextMenuPrimitive.Portal>

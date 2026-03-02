@@ -1,8 +1,7 @@
-// @ts-nocheck
 
 'use client';
 
-import { useEditor } from "@/context/editor-context";
+import { useEditorStore } from '@/store';
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import {
@@ -11,7 +10,7 @@ import {
     Scissors, Copy, ClipboardPaste, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Group, Ungroup, CopyPlus, ArrowLeftRight, ArrowUpDown, ChevronDown, ChevronRight
 } from 'lucide-react';
 import type { GroupObject, SvgObject } from "@/types/editor";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { clipboard } from "@/lib/clipboard";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger, ContextMenuShortcut } from '../ui/context-menu';
 import { Input } from "../ui/input";
@@ -25,9 +24,12 @@ interface LayerRowProps {
 }
 
 
-export const LayerRow = ({ objectId, level, isOverlay }: LayerRowProps) => {
-    const { state, dispatch } = useEditor();
-    const { selectedObjectIds, objects, zStack, editingLayerId, ui } = state;
+export const LayerRow = memo(({ objectId, level, isOverlay }: LayerRowProps) => {
+    const dispatch = useEditorStore(state => state.dispatch);
+    const selectedObjectIds = useEditorStore(state => state.present.selectedObjectIds);
+    const objects = useEditorStore(state => state.present.objects);
+    const editingLayerId = useEditorStore(state => state.present.editingLayerId);
+    const ui = useEditorStore(state => state.present.ui);
 
     const [tempName, setTempName] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
@@ -204,22 +206,39 @@ export const LayerRow = ({ objectId, level, isOverlay }: LayerRowProps) => {
                 <ContextMenuContent>
                     <ContextMenuItem onSelect={() => {
                         const selected = selectedObjectIds.map(id => objects[id]);
-                        clipboard.copy(selected);
+                        clipboard.copy({
+                            schema: 'comware/vectoria',
+                            version: 1,
+                            type: 'objects',
+                            payload: selected as any
+                        });
                         dispatch({ type: 'DELETE_SELECTED' });
                     }}
                         disabled={selectedObjectIds.length === 0 || isSelectionLocked}
                     >
                         <Scissors className="mr-2 h-4 w-4" /> Cut <ContextMenuShortcut>⌘+X</ContextMenuShortcut>
                     </ContextMenuItem>
-                    <ContextMenuItem onSelect={() => clipboard.copy(selectedObjectIds.map(id => objects[id]))} disabled={selectedObjectIds.length === 0}>
+                    <ContextMenuItem onSelect={() => clipboard.copy({
+                        schema: 'comware/vectoria',
+                        version: 1,
+                        type: 'objects',
+                        payload: selectedObjectIds.map(id => objects[id]) as any
+                    })} disabled={selectedObjectIds.length === 0}>
                         <Copy className="mr-2 h-4 w-4" /> Copy <ContextMenuShortcut>⌘+C</ContextMenuShortcut>
                     </ContextMenuItem>
-                    <ContextMenuItem onSelect={() => dispatch({ type: 'PASTE_OBJECTS', payload: clipboard.paste() })}>
+                    <ContextMenuItem onSelect={() => { clipboard.paste(); dispatch({ type: 'PASTE_OBJECTS' }); }}>
                         <ClipboardPaste className="mr-2 h-4 w-4" /> Paste <ContextMenuShortcut>⌘+V</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem onSelect={() => {
                         const selected = selectedObjectIds.map(id => objects[id]);
-                        dispatch({ type: 'PASTE_OBJECTS', payload: selected });
+                        clipboard.copy({
+                            schema: 'comware/vectoria',
+                            version: 1,
+                            type: 'objects',
+                            payload: selected as any
+                        });
+                        clipboard.paste();
+                        dispatch({ type: 'PASTE_OBJECTS' });
                     }} disabled={selectedObjectIds.length === 0}>
                         <CopyPlus className="mr-2 h-4 w-4" /> Duplicate <ContextMenuShortcut>⌘+D</ContextMenuShortcut>
                     </ContextMenuItem>
@@ -279,4 +298,5 @@ export const LayerRow = ({ objectId, level, isOverlay }: LayerRowProps) => {
             </ContextMenu>
         </div>
     )
-}
+});
+LayerRow.displayName = "LayerRow";

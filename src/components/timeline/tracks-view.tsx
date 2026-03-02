@@ -1,6 +1,6 @@
 'use client';
 
-import { useEditor } from "@/context/editor-context";
+import { useEditorStore } from "@/store";
 import type { Keyframe as KeyframeType, PropertyId, SvgObject, GroupObject, TimelineRow } from "@/types/editor";
 import { useRef, useMemo, RefObject } from "react";
 import { pxToMs, msToX } from "@/lib/anim/utils";
@@ -25,8 +25,10 @@ const TrackContent = ({
   msPerPx: number;
   onKeyframeContextMenu?: (e: React.MouseEvent, id: string, objectId: string, propertyId: PropertyId) => void;
 }) => {
-  const { state, dispatch } = useEditor();
-  const { objects, timeline } = state;
+  const dispatch = useEditorStore(state => state.dispatch);
+  const stateCounterpart = useEditorStore(state => state.present);
+  const objects = useEditorStore(state => state.present.objects);
+  const timeline = useEditorStore(state => state.present.timeline);
   const { objectId } = row;
   const { durationMs, fps } = timeline;
 
@@ -44,9 +46,9 @@ const TrackContent = ({
 
   const displayedClip = useMemo(() => {
     const base = object.type === "group"
-      ? getCompositeGroupClip(state, objectId)
-      : getLayerClipSafe(state, objectId);
-    const startOffset = state.timeline.layers[objectId]?.startMs ?? 0;
+      ? getCompositeGroupClip(stateCounterpart, objectId)
+      : getLayerClipSafe(stateCounterpart, objectId);
+    const startOffset = stateCounterpart.timeline.layers[objectId]?.startMs ?? 0;
     if (!base) return base;
     return {
       ...base,
@@ -55,7 +57,7 @@ const TrackContent = ({
         endMs: s.endMs + startOffset,
       })),
     };
-  }, [state, objectId, object.type]);
+  }, [stateCounterpart, objectId, object.type]);
 
   if (!displayedClip?.segments?.length && row.kind === 'header') {
     return <EmptyTrackRow height={row.height} />;
@@ -72,7 +74,7 @@ const TrackContent = ({
     e.stopPropagation();
     if (object.locked) return;
 
-    if (state.timeline.playing) {
+    if (timeline.playing) {
       dispatch({ type: 'SET_TIMELINE_PLAYING', payload: false });
     }
 
@@ -171,7 +173,7 @@ const TrackContent = ({
     e.stopPropagation();
     if (object.locked) return;
 
-    if (state.timeline.playing) {
+    if (timeline.playing) {
       dispatch({ type: 'SET_TIMELINE_PLAYING', payload: false });
     }
 
@@ -193,8 +195,8 @@ const TrackContent = ({
       moveEvent.preventDefault();
       const dx = moveEvent.clientX - dragInfoRef.current.startX;
       const rawDeltaMs = dx * msPerPx;
-      const snap = state.timeline.ui.snap;
-      const step = state.timeline.ui.snapStepMs || (1000 / state.timeline.fps);
+      const snap = timeline.ui.snap;
+      const step = timeline.ui.snapStepMs || (1000 / timeline.fps);
       const dMs = snap ? Math.round(rawDeltaMs / step) * step : rawDeltaMs;
 
       const deltaToApply = dMs - dragInfoRef.current.lastAppliedMs;
@@ -266,8 +268,8 @@ const TrackContent = ({
 
 
 export default function TracksView({ scrollRef, panelWidth, originMs, msPerPx, onKeyframeContextMenu }: { scrollRef: RefObject<HTMLDivElement>, panelWidth: number, originMs: number, msPerPx: number, onKeyframeContextMenu?: (e: React.MouseEvent, id: string, objectId: string, propertyId: PropertyId) => void }) {
-  const { state } = useEditor();
-  const { timeline, timelineRows } = state;
+  const timeline = useEditorStore(state => state.present.timeline);
+  const timelineRows = useEditorStore(state => state.present.timelineRows);
   const { durationMs, fps } = timeline;
 
   const totalWidth = Math.max(panelWidth, durationMs / msPerPx);

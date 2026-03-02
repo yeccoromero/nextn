@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useEditorStore } from '@/store';
 import { useEditor } from '@/context/editor-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,9 +16,9 @@ import { ChevronDown, Minus, Plus, Frame } from 'lucide-react';
 const ZOOM_LEVELS = [0.5, 1, 1.5, 2];
 
 export function ZoomControls() {
-  const { state, zoomActionsRef } = useEditor();
-  const { canvas } = state;
-  
+  const zoom = useEditorStore(state => state.present.canvas.zoom);
+  const { zoomActionsRef } = useEditor();
+
   const handleZoomIn = () => zoomActionsRef.current?.zoomIn();
   const handleZoomOut = () => zoomActionsRef.current?.zoomOut();
   const handleZoomToFit = () => zoomActionsRef.current?.zoomToFit();
@@ -31,7 +32,7 @@ export function ZoomControls() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-24">
-            {Math.round(canvas.zoom * 100)}%
+            <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">{Math.round((zoom ?? 1) * 100)}%</span>
             <ChevronDown className="h-4 w-4 ml-2" />
           </Button>
         </DropdownMenuTrigger>

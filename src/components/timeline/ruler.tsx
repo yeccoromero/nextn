@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useEditor } from '@/context/editor-context';
+import { useEditorStore } from '@/store';
 import { generateTicks } from '@/lib/anim/timeline-ticks';
 
 type RulerProps = {
@@ -12,12 +12,10 @@ type RulerProps = {
 };
 
 export default function Ruler({ height, panelWidth, originMs, msPerPx }: RulerProps) {
-  const { state } = useEditor();
-  const { timeline } = state;
-  const { fps } = timeline;
+  const fps = useEditorStore(state => state.present.timeline.fps);
 
   const ticks = generateTicks(originMs, panelWidth, msPerPx, fps);
-  
+
   if (ticks.length === 0) {
     return <div style={{ height, width: panelWidth, background: 'hsl(var(--background))', borderBottom: '1px solid hsl(var(--border))' }} />;
   }
@@ -34,26 +32,28 @@ export default function Ruler({ height, panelWidth, originMs, msPerPx }: RulerPr
       }}
     >
       {ticks.map((t, i) => {
-        // Heights based on tick kind
+        // Heights based on tick kind - much shorter for a cleaner look
         const tickHeight =
-          t.kind === 'major' ? 12 :
-          t.kind === 'minor' ? 7 :
-          4; // micro
+          t.kind === 'major' ? 10 :
+            t.kind === 'minor' ? 5 :
+              3; // micro
 
         const alpha =
-          t.kind === 'major' ? 0.75 :
-          t.kind === 'minor' ? 0.4 :
-          0.25;
+          t.kind === 'major' ? 0.6 :
+            t.kind === 'minor' ? 0.3 :
+              0.15;
 
         const leftTick = Math.round(t.x) + 0.5;
 
         return (
           <div key={i} className="absolute h-full" style={{ left: leftTick, top: 0 }}>
-            {/* The tick line, drawn from the bottom up */}
-            <div 
-              className="absolute bottom-0 w-px"
-              style={{ height: tickHeight, background: `hsla(var(--foreground) / ${alpha})` }} 
-            />
+            {/* The tick line, centered vertically. Hidden for major ticks to keep it clean */}
+            {t.kind !== 'major' && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2 w-px"
+                style={{ height: tickHeight, background: `hsla(var(--foreground) / ${alpha})` }}
+              />
+            )}
 
             {/* The label, drawn at the top */}
             {t.label && (
