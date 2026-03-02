@@ -23,8 +23,8 @@ export const PropertyTrackRow = memo(({
   onKeyframeContextMenu?: (e: React.MouseEvent, id: string, objectId: string, propertyId: PropertyId) => void;
 }) => {
   const dispatch = useEditorStore(state => state.dispatch);
-  const timeline = useEditorStore(state => state.present.timeline);
-  const objects = useEditorStore(state => state.present.objects);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
+  const objects = useEditorStore(state => (state.transientPresent ?? state.present).objects);
   const layerTrack = timeline.layers[objectId];
 
   const dragInfoRef = useRef<{

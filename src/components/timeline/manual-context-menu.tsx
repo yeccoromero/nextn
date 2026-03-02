@@ -18,7 +18,7 @@ interface Props {
 }
 
 export function ManualContextMenu({ x, y, keyframeId, objectId, propertyId, onClose }: Props) {
-    const timeline = useEditorStore(state => state.present.timeline);
+    const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
     const dispatch = useEditorStore(state => state.dispatch);
     const ref = useRef<HTMLDivElement>(null);
     const [mounted, setMounted] = useState(false);

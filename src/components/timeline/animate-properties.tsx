@@ -27,8 +27,8 @@ const ALL_PROPERTIES: { group: string; props: { id: PropertyId; name: string; sh
 
 export default function AnimateProperties({ objectId, onClose }: { objectId: string, onClose: () => void }) {
     const dispatch = useEditorStore(state => state.dispatch);
-    const object = useEditorStore(state => state.present.objects[objectId]);
-    const layerTrack = useEditorStore(state => state.present.timeline.layers[objectId]);
+    const object = useEditorStore(state => (state.transientPresent ?? state.present).objects[objectId]);
+    const layerTrack = useEditorStore(state => (state.transientPresent ?? state.present).timeline.layers[objectId]);
 
     if (!object) return null;
 

@@ -108,8 +108,8 @@ const PropertyRowUI = ({
   rowHeight: number;
 }) => {
   const dispatch = useEditorStore(state => state.dispatch);
-  const objects = useEditorStore(state => state.present.objects);
-  const timeline = useEditorStore(state => state.present.timeline);
+  const objects = useEditorStore(state => (state.transientPresent ?? state.present).objects);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
   const object = objects[objectId];
   const [editingField, setEditingField] = useState<string | null>(null);
 
@@ -531,9 +531,9 @@ const LayerRowUI = ({
 }) => {
   const dispatch = useEditorStore(state => state.dispatch);
   const selectedObjectIds = useEditorStore(state => state.present.selectedObjectIds);
-  const objects = useEditorStore(state => state.present.objects);
+  const objects = useEditorStore(state => (state.transientPresent ?? state.present).objects);
   const editingLayerId = useEditorStore(state => state.present.editingLayerId);
-  const timeline = useEditorStore(state => state.present.timeline);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
   const object = objects[objectId];
 
   const [tempName, setTempName] = useState("");
@@ -797,10 +797,10 @@ const LayerRowUI = ({
 
 export default function LayersTree({ scrollRef }: { scrollRef: RefObject<HTMLDivElement>; }) {
   const dispatch = useEditorStore(state => state.dispatch);
-  const timelineRows = useEditorStore(state => state.present.timelineRows);
-  const objects = useEditorStore(state => state.present.objects);
+  const timelineRows = useEditorStore(state => (state.transientPresent ?? state.present).timelineRows);
+  const objects = useEditorStore(state => (state.transientPresent ?? state.present).objects);
   const zStack = useEditorStore(state => state.present.zStack);
-  const ui = useEditorStore(state => state.present.ui);
+  const ui = useEditorStore(state => (state.transientPresent ?? state.present).ui);
 
   const [activeId, setActiveId] = useState<string | null>(null);
 

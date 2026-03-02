@@ -56,7 +56,7 @@ import { Playhead } from './playhead';
 
 const WorkAreaControls = ({ innerWidth, originMs, msPerPx }: { innerWidth: number, originMs: number, msPerPx: number }) => {
   const dispatch = useEditorStore(state => state.dispatch);
-  const timeline = useEditorStore(state => state.present.timeline);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
   const { durationMs, playheadMs } = timeline;
   const wa = timeline.workArea ?? { startMs: 0, endMs: durationMs };
 
@@ -172,7 +172,7 @@ export default function TimelinePanel() {
   const localTracksContainerRef = useRef<HTMLDivElement>(null);
 
   const dispatch = useEditorStore(state => state.dispatch);
-  const timeline = useEditorStore(state => state.present.timeline);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
   const state = useEditorStore(state => state.present);
 
   const scrubRef = useRef(false);

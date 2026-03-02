@@ -27,9 +27,9 @@ interface LayerRowProps {
 export const LayerRow = memo(({ objectId, level, isOverlay }: LayerRowProps) => {
     const dispatch = useEditorStore(state => state.dispatch);
     const selectedObjectIds = useEditorStore(state => state.present.selectedObjectIds);
-    const objects = useEditorStore(state => state.present.objects);
+    const objects = useEditorStore(state => (state.transientPresent ?? state.present).objects);
     const editingLayerId = useEditorStore(state => state.present.editingLayerId);
-    const ui = useEditorStore(state => state.present.ui);
+    const ui = useEditorStore(state => (state.transientPresent ?? state.present).ui);
 
     const [tempName, setTempName] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);

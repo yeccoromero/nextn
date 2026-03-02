@@ -27,8 +27,8 @@ const TrackContent = ({
 }) => {
   const dispatch = useEditorStore(state => state.dispatch);
   const stateCounterpart = useEditorStore(state => state.present);
-  const objects = useEditorStore(state => state.present.objects);
-  const timeline = useEditorStore(state => state.present.timeline);
+  const objects = useEditorStore(state => (state.transientPresent ?? state.present).objects);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
   const { objectId } = row;
   const { durationMs, fps } = timeline;
 
@@ -268,8 +268,8 @@ const TrackContent = ({
 
 
 export default function TracksView({ scrollRef, panelWidth, originMs, msPerPx, onKeyframeContextMenu }: { scrollRef: RefObject<HTMLDivElement>, panelWidth: number, originMs: number, msPerPx: number, onKeyframeContextMenu?: (e: React.MouseEvent, id: string, objectId: string, propertyId: PropertyId) => void }) {
-  const timeline = useEditorStore(state => state.present.timeline);
-  const timelineRows = useEditorStore(state => state.present.timelineRows);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
+  const timelineRows = useEditorStore(state => (state.transientPresent ?? state.present).timelineRows);
   const { durationMs, fps } = timeline;
 
   const totalWidth = Math.max(panelWidth, durationMs / msPerPx);

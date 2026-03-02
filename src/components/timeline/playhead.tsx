@@ -24,7 +24,7 @@ export function Playhead({
     onPointerMove?: React.PointerEventHandler<HTMLDivElement>;
     onPointerUp?: React.PointerEventHandler<HTMLDivElement>;
 }) {
-    const timeline = useEditorStore(state => state.present.timeline);
+    const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
     const { playheadMs, fps } = timeline;
 
     if (panelWidth <= 0 || msPerPx <= 0) return null;

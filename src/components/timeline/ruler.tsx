@@ -12,7 +12,7 @@ type RulerProps = {
 };
 
 export default function Ruler({ height, panelWidth, originMs, msPerPx }: RulerProps) {
-  const fps = useEditorStore(state => state.present.timeline.fps);
+  const fps = useEditorStore(state => (state.transientPresent ?? state.present).timeline.fps);
 
   const ticks = generateTicks(originMs, panelWidth, msPerPx, fps);
 

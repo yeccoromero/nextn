@@ -12,7 +12,7 @@ export const formatTime = (ms: number, fps: number) => {
 
 export default function Transport() {
   const dispatch = useEditorStore(state => state.dispatch);
-  const timeline = useEditorStore(state => state.present.timeline);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
   const { playing, playheadMs, durationMs, fps } = timeline;
 
   const handlePlayPause = () => {

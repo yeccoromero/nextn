@@ -757,7 +757,7 @@ const hitTestEffectHandles = (
 
 export default function Canvas() {
     const dispatch = useEditorStore(state => state.dispatch);
-    const state = useEditorStore(state => state.present);
+    const state = useEditorStore(state => state.transientPresent ?? state.present);
     const { zoomActionsRef } = useEditor();
 
     if (!state) {

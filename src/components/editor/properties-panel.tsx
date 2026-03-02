@@ -203,7 +203,7 @@ const TimecodeField = ({ durationMs, fps, onDurationChange, onFpsChange }: Timec
 const SceneProperties = () => {
 
   const canvas = useEditorStore(state => state.present.canvas);
-  const timeline = useEditorStore(state => state.present.timeline);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
   const dispatch = useEditorStore(state => state.dispatch);
 
   const [lastSolidColor, setLastSolidColor] = useState(() => canvas.background === 'transparent' ? '#FFFFFF' : canvas.background);
@@ -351,9 +351,9 @@ const SceneProperties = () => {
 
 const ObjectProperties = () => {
   const selectedObjectIds = useEditorStore(state => state.present.selectedObjectIds);
-  const objects = useEditorStore(state => state.present.objects);
+  const objects = useEditorStore(state => (state.transientPresent ?? state.present).objects);
   const canvas = useEditorStore(state => state.present.canvas);
-  const timeline = useEditorStore(state => state.present.timeline);
+  const timeline = useEditorStore(state => (state.transientPresent ?? state.present).timeline);
   const dispatch = useEditorStore(state => state.dispatch);
 
   const stateForSelectors = useEditorStore(state => state.present);
