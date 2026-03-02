@@ -1295,6 +1295,7 @@ export default function Canvas() {
         }
 
         if (creationTools.includes(currentTool)) {
+            console.log("--- CREATING OBJECT FROM CANVAS ---", currentTool);
             const newObjectId = nanoid();
             const commonProps = {
                 id: newObjectId,
@@ -1353,6 +1354,7 @@ export default function Canvas() {
                 hasHistoryEntry: false,
                 isDrag: false
             };
+            console.log("--- ADD_OBJECT DISPATCHED ---", newObjectId);
         }
     };
 

@@ -31,25 +31,29 @@ export const useEditorStore = create<EditorStore>()(immer((set, get, store) => (
 
     // Legacy Reducer Dispatch Engine
     dispatch: (action: EditorAction) => {
-        set((state) => {
-            // historyReducer uses Immer internally, so we expect it to return a new state
-            // but because we are inside a Zustand non-immer setter, we need to pass the whole History
-            // object and merge the result back.
-            const historyState = {
-                past: state.past,
-                present: state.present,
-                future: state.future,
-                transientPresent: state.transientPresent,
-                transientEntry: state.transientEntry,
-                pendingBatches: state.pendingBatches,
-                latestGroupId: state.latestGroupId,
-            };
+        // Run the history reducer against the raw current state (NOT a draft)
+        // to avoid nested Immer produce tracking issues.
+        const currentState = get();
+        const historyState = {
+            past: currentState.past,
+            present: currentState.present,
+            future: currentState.future,
+            transientPresent: currentState.transientPresent,
+            transientEntry: currentState.transientEntry,
+            pendingBatches: currentState.pendingBatches,
+            latestGroupId: currentState.latestGroupId,
+        };
 
-            const nextState = historyReducer(historyState, action);
+        const nextState = historyReducer(historyState, action);
 
-            return {
-                ...nextState
-            };
+        set((draft) => {
+            draft.past = nextState.past as any;
+            draft.present = nextState.present as any;
+            draft.future = nextState.future as any;
+            draft.transientPresent = nextState.transientPresent as any;
+            draft.transientEntry = nextState.transientEntry as any;
+            draft.pendingBatches = nextState.pendingBatches as any;
+            draft.latestGroupId = nextState.latestGroupId as any;
         });
     },
 

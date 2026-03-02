@@ -1600,6 +1600,7 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
     }
 
     case 'ADD_OBJECT': {
+      console.log("---- ADD_OBJECT RECIPE ----");
       const incoming = (action as any).payload;
       const newObjectWithDefaults: SvgObject = {
         ...(incoming as SvgObject),
@@ -2510,6 +2511,8 @@ const historyReducer = produce((state: History<EditorState>, action: EditorActio
   const currentState = state.transientPresent ?? state.present;
   const { past, present, future } = state;
 
+  console.log("---- HISTORY REDUCER START ----", action.type);
+
   const commitBatch = (groupId: string) => {
     const batchEntry = state.pendingBatches[groupId];
     if (batchEntry && (batchEntry.patches.length > 0 || batchEntry.inversePatches.length > 0)) {
@@ -2650,6 +2653,7 @@ const historyReducer = produce((state: History<EditorState>, action: EditorActio
       const newGroupId = typeof historyMeta === 'object' ? historyMeta.groupId : undefined;
 
       if (isIgnored) {
+        console.log("---- HISTORY REDUCER IGNORED ----", action.type);
         state.transientPresent = nextPresent;
         if ((patches?.length ?? 0) > 0 || (inversePatches?.length ?? 0) > 0) {
           if (!state.transientEntry) {

@@ -42,9 +42,10 @@ const TrackContent = ({
   const minLenMs = 100; // consistente con reducer
 
   const object = objects[objectId];
-  if (!object) return <EmptyTrackRow height={row.height} />;
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const displayedClip = useMemo(() => {
+    if (!object) return null;
     const base = object.type === "group"
       ? getCompositeGroupClip(stateCounterpart, objectId)
       : getLayerClipSafe(stateCounterpart, objectId);
@@ -57,13 +58,13 @@ const TrackContent = ({
         endMs: s.endMs + startOffset,
       })),
     };
-  }, [stateCounterpart, objectId, object.type]);
+  }, [stateCounterpart, objectId, object]);
+
+  if (!object) return <EmptyTrackRow height={row.height} />;
 
   if (!displayedClip?.segments?.length && row.kind === 'header') {
     return <EmptyTrackRow height={row.height} />;
   }
-
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const handlePointerDown = (
     type: 'move' | 'resize-start' | 'resize-end',
@@ -90,7 +91,7 @@ const TrackContent = ({
       type,
       clipId,
       startX: e.clientX,
-      originalSegments: JSON.parse(JSON.stringify(displayedClip.segments)),
+      originalSegments: JSON.parse(JSON.stringify(displayedClip!.segments)),
       lastAppliedMs: 0
     };
     document.body.style.cursor =
@@ -240,7 +241,7 @@ const TrackContent = ({
           layerId={objectId}
           objectId={objectId}
           rowHeight={row.height}
-          clip={displayedClip}
+          clip={displayedClip!}
           isGroup={object.type === "group"}
           panelWidth={panelWidth}
           originMs={originMs}
