@@ -117,7 +117,13 @@ export function useCanvasShortcuts() {
                 }
             }
 
-            // --- Esc (Cancel Selection) ---
+            // --- Esc or Enter (Finish Path / Cancel Selection) ---
+            if ((e.key === 'Escape' || e.key === 'Enter') && currentTool === 'pen' && state.drawingPath) {
+                dispatch({ type: 'FINISH_DRAWING_PATH', payload: { closed: e.key === 'Enter' } });
+                e.preventDefault();
+                return;
+            }
+
             if (e.key === 'Escape' && (currentTool === 'path-edit' || ui.isEditingGradient)) {
                 dispatch({ type: 'CLEAR_SELECTED_PATH_NODES' });
                 dispatch({ type: 'CLEAR_SELECTION' });

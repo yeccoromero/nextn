@@ -7,11 +7,42 @@ Este archivo documenta **todos los cambios notables** del proyecto con referenci
 
 ---
 
+## [v0.8.0] — 2026-03-04 — Pen Tool & Path Edit Overhaul (Stable)
+
+Added:
+- `DELETE_SELECTED` now intercepts `selectedPathNodes` to delete individual nodes instead of the entire path object.
+- `START_DRAWING_PATH` initializes with 2 points (anchor + preview cursor) so the first click is immediately committed.
+- `vectorEffect="non-scaling-stroke"` on all path elements prevents stroke deformation during non-uniform scaling.
+- `strokeLinejoin="round"` and default `strokeLinecap="round"` for visually smooth strokes at joins and caps.
+- Keyboard shortcuts (Enter, Escape) explicitly mapped to drawing completion.
+
+Changed:
+- `getHoveredInteraction()` is bypassed when `currentTool === 'path-edit'`, preventing bounding box interactions from intercepting node clicks.
+- `legacyReducer.ts` `produceWithPatches` correctly stacks sequential transient actions using `state.transientPresent ?? currentState`.
+- `UPDATE_DRAWING_PATH` uses `isDrag` flag to distinguish hover preview from structural bezier handle edits.
+- `FINISH_DRAWING_PATH` pops trailing preview cursor node (guard changed to `>= 2`) and switches tool to `path-edit` with all nodes selected.
+
+Fixed:
+- **First node lost on pen tool**: `START_DRAWING_PATH` created 1 point which `UPDATE_DRAWING_PATH` immediately overwrote on hover.
+- **Whole object moving in path-edit**: `getHoveredInteraction()` fired before node-click code, intercepting anchor clicks as object `'move'` events.
+- **Stroke deformation on scale**: Missing `vectorEffect="non-scaling-stroke"` on SVG path elements.
+- **Hard corners on closed paths**: Missing `strokeLinejoin` (SVG default `miter`) created angular joins at closed path anchor points.
+- **Playhead freeze**: Sequential transient actions in `historyReducer` were overwriting each other instead of stacking.
+- **Bezier handles disappearing**: Continuous `UPDATE_DRAWING_PATH` on hover erased `handleIn`/`handleOut` set during drag.
+- **Dangling preview node**: `FINISH_DRAWING_PATH` included the trailing cursor preview point in the normalized path.
+
+Impact: Path drawing and editing now behave like professional vector editors (Illustrator/Figma). Timeline playback is stable.
+
+
+## [2026-03-01] — Zustand Final Migration (Phase 3 & 4)
+Added: `historySlice.ts` implementation to handle native Undo/Redo inside Zustand without wrapping reducers.
+Changed: `canvas.tsx` split using hook `useCanvasSelection.ts` to detach the marquee selection logic from rendering.
+Changed: `layers-panel.tsx` and `header.tsx` updated to use native Zustand selectors and direct store actions like `useEditorStore.getState().undo()`.
+Changed: Applied `React.memo` aggressively across row components (`layer-row.tsx`, `property-track-row.tsx`, etc) to boost re-render performance now that Zustand provides atomic updates.
+Fixed: Replaced `historyReducer` overhead in `index.ts`. UNDO/REDO are true slice actions. Build is perfectly clean.
+Impact: Significant performance boost. App state is robust and predictable. Editor logic is no longer tangled inside monolithic files.
+
 ## [2026-02-24] — Warp Rise: Wave-Like Curvature with Right Anchor
-Added: Perfil sinusoidal controlado (`wave = sin(pi*t)`) en el desplazamiento vertical de Rise.
-Changed: `rise` ahora usa `dv = bend * (t + 0.22 * wave)` con `t = 1 - u` para curva tipo wave.
-Fixed: Se corrige el carácter de la curva para que se perciba más ondulada, manteniendo el lado derecho fijo.
-Impact: Rise conserva anclaje derecho y gana un trazo de curva más cercano al look de referencia.
 
 ## [2026-02-24] — Warp Rise: Right-Side Anchoring Correction
 Added: Perfil de Rise anclado por el lado derecho (`ramp = 1 - u`) con bow suave interno.
@@ -273,3 +304,7 @@ git checkout dev
 git tag v0.2.1
 git push origin v0.2.1
 ```
+## [2026-03-02] — Fix Bezier Handles logic
+Fixed: Bezier Handles now render appropriately during Pen Tool path creation and correctly retain their properties when switching to Edit Path mode.
+Fixed: Enter and Esc correctly drop current path from Pen Tool but auto-select newly made Path to allow immediate Handle editing.
+

@@ -1,0 +1,12 @@
+--- src/lib/anim/legacy-runtime.ts
++++ src/lib/anim/legacy-runtime.ts
+@@ -344,2 +344,3 @@
+     updateFrame(timeMs: number) {
++        console.log('[ANIM_DEBUG] updateFrame called', timeMs);
+         if (!this.spec) return;
+@@ -459,4 +460,5 @@
+     play() {
++        console.log('[ANIM_DEBUG] play() called', !!this.tl);
+         if (!this.tl) return;
+         this.tl.play();
+     }

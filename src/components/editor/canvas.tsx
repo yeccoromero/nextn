@@ -409,7 +409,9 @@ const RenderObjectContent = ({ obj, fill, transform, allObjects, selectedObjectI
                             fill={fill}
                             stroke={p.stroke}
                             strokeWidth={p.strokeWidth}
-                            strokeLinecap={p.strokeLineCap ?? 'butt'}
+                            strokeLinecap={p.strokeLineCap ?? 'round'}
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
                             id={p.id}
                             data-id={p.id}
                             fillRule="evenodd"
@@ -878,6 +880,12 @@ export default function Canvas() {
                     const point = best.path.points[best.hit.pointIndex];
                     dispatch({ type: 'UPDATE_PATH_POINT', payload: { pathId: best.pathId, pointIndex: best.hit.pointIndex, newPoint: { ...point, handleIn: null, handleOut: null, mode: 'corner' } } });
                 }
+
+                // Select the path and the node we just updated
+                dispatch({ type: 'SELECT_OBJECT', payload: { id: best.pathId, shiftKey: false } });
+                dispatch({ type: 'SET_SELECTED_PATH_NODES', payload: { nodes: [{ pathId: best.pathId, pointIndex: best.hit.pointIndex }] } });
+
+                dispatch({ type: 'COMMIT_DRAG' });
                 return;
             }
         }
@@ -909,6 +917,13 @@ export default function Canvas() {
                         }
                     });
                 }
+
+                // Keep the path selected, and select the node we just interacted with
+                dispatch({ type: 'SELECT_OBJECT', payload: { id: pathId, shiftKey: false } });
+                dispatch({ type: 'SET_SELECTED_PATH_NODES', payload: { nodes: [{ pathId, pointIndex: hit.pointIndex }] } });
+
+                dispatch({ type: 'COMMIT_DRAG' });
+                return;
             } else if (hit?.kind === 'segment') {
                 const closest = findClosestPointOnPathWorld(path, objects, svgPoint);
                 if (!closest) return;
@@ -1029,14 +1044,14 @@ export default function Canvas() {
             return;
         }
 
-        const hoveredInteraction = getHoveredInteraction(
+        const hoveredInteraction = currentTool !== 'path-edit' ? getHoveredInteraction(
             svgPoint,
             overallBBox,
             canvas.zoom,
             ui.isEditingGradient,
             selectedObjectIds.length === 1 ? objects[selectedObjectIds[0]] : null,
             objects
-        );
+        ) : null;
 
         if (hoveredInteraction) {
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -1210,13 +1225,31 @@ export default function Canvas() {
         if (currentTool === 'pen') {
             if (!drawingPath) {
                 dispatch({ type: 'START_DRAWING_PATH', payload: { point: svgPoint } });
+                interactionStateRef.current = {
+                    type: 'drawing',
+                    start: svgPoint,
+                    objectId: 'new-path',
+                    shiftKey: e.shiftKey,
+                    hasHistoryEntry: false,
+                    isDrag: false
+                };
             } else {
                 const nearbyNode = findNearbyNode(svgPoint, canvas.zoom);
                 if (nearbyNode?.isStartNode) {
                     dispatch({ type: 'FINISH_DRAWING_PATH', payload: { closed: true } });
                     return;
                 }
-                dispatch({ type: 'UPDATE_DRAWING_PATH', payload: { point: svgPoint } });
+
+                // Clicking adds an actual node. The preview node will trail behind.
+                dispatch({ type: 'DRAW_PATH_ADD_POINT', payload: { point: svgPoint } });
+                interactionStateRef.current = {
+                    type: 'drawing',
+                    start: svgPoint,
+                    objectId: drawingPath.id,
+                    shiftKey: e.shiftKey,
+                    hasHistoryEntry: false,
+                    isDrag: false
+                };
             }
             return;
         }
@@ -1394,6 +1427,12 @@ export default function Canvas() {
             if (currentTool === 'pan') {
                 setCursor('grab');
                 return;
+            }
+            if (currentTool === 'pen') {
+                if (drawingPath) {
+                    // Pen hover preview
+                    dispatch({ type: 'UPDATE_DRAWING_PATH', payload: { point: svgPoint, isDrag: false } });
+                }
             }
             if (currentTool === 'pen' || currentTool === 'path-edit' || currentTool === 'add-node' || currentTool === 'remove-node') {
                 const best = findBestPathHit(svgPoint, canvas.zoom, objects, zStack, selectedObjectIds);
@@ -1583,9 +1622,18 @@ export default function Canvas() {
             }
             case 'drawing': {
                 const st = interactionState;
-                if (!st.objectId || !st.originalObjects) return;
+                if (!st.objectId && !drawingPath) return;
 
-                const obj = st.originalObjects.get(st.objectId);
+                if (drawingPath && currentTool === 'pen') {
+                    // Update trailing node to follow mouse
+                    // Only dispatch drag if we are actually dragging
+                    dispatch({ type: 'UPDATE_DRAWING_PATH', payload: { point: svgPoint, isDrag: st.isDrag } });
+                    st.hasHistoryEntry = false; // Pen tool has its own dispatch sequence, no global Commit
+                    break;
+                }
+
+                if (!st.originalObjects) return;
+                const obj = st.originalObjects.get(st.objectId!);
                 if (!obj) return;
 
                 let updates: Partial<SvgObject> = {};
@@ -1625,7 +1673,7 @@ export default function Canvas() {
                             break;
                     }
                 }
-                dispatch({ type: 'UPDATE_OBJECTS', payload: { ids: [st.objectId], updates }, transient: true });
+                dispatch({ type: 'UPDATE_OBJECTS', payload: { ids: [st.objectId!], updates }, transient: true });
                 st.hasHistoryEntry = true;
                 break;
             }
@@ -1894,7 +1942,11 @@ export default function Canvas() {
                 }
             }
             dispatch({ type: 'COMMIT_DRAG' });
-            dispatch({ type: 'SET_TOOL', payload: 'select' });
+
+            if (currentTool !== 'pen') {
+                dispatch({ type: 'SET_TOOL', payload: 'select' });
+            }
+
             interactionStateRef.current._committed = true;
         }
 

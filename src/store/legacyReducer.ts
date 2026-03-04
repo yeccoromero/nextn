@@ -50,7 +50,8 @@ export type EditorAction = (
   | { type: 'BRING_TO_FRONT'; payload: { ids: string[] } }
   | { type: 'SEND_TO_BACK'; payload: { ids: string[] } }
   | { type: 'START_DRAWING_PATH'; payload: { point: { x: number; y: number }; isLine?: boolean } }
-  | { type: 'UPDATE_DRAWING_PATH'; payload: { point: { x: number; y: number } } }
+  | { type: 'UPDATE_DRAWING_PATH'; payload: { point: { x: number; y: number }; isDrag?: boolean } }
+  | { type: 'DRAW_PATH_ADD_POINT'; payload: { point: { x: number; y: number } } }
   | { type: 'HOVER_DRAWING_PATH'; payload: { point: { x: number, y: number } }, transient?: boolean }
   | { type: 'FINISH_DRAWING_PATH', payload: { closed: boolean } }
   | { type: 'UPDATE_PATH_POINT'; payload: { pathId: string; pointIndex: number; newPoint: Partial<BezierPoint> }; transient?: boolean }
@@ -1907,6 +1908,40 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       return;
 
     case 'DELETE_SELECTED': {
+      if (draft.selectedPathNodes && draft.selectedPathNodes.length > 0) {
+        // Group nodes by path
+        const nodesByPath = draft.selectedPathNodes.reduce((acc, node) => {
+          if (!acc[node.pathId]) acc[node.pathId] = [];
+          acc[node.pathId].push(node.pointIndex);
+          return acc;
+        }, {} as Record<string, number[]>);
+
+        let deletingWholeObjects: string[] = [];
+
+        Object.keys(nodesByPath).forEach(pathId => {
+          const path = draft.objects[pathId] as PathObject;
+          if (path && path.type === 'path') {
+            const indicesToRemove = new Set(nodesByPath[pathId]);
+            const newPoints = path.points.filter((_, i) => !indicesToRemove.has(i));
+
+            if (newPoints.length < 2) {
+              deletingWholeObjects.push(pathId);
+            } else {
+              path.points = newPoints;
+            }
+          }
+        });
+
+        draft.selectedPathNodes = [];
+
+        // If we are left with paths that have < 2 points, they are degenerate, delete the whole object.
+        if (deletingWholeObjects.length === 0) {
+          return;
+        } else {
+          draft.selectedObjectIds = deletingWholeObjects;
+        }
+      }
+
       const toDelete = new Set(draft.selectedObjectIds);
       draft.selectedObjectIds.forEach(id => {
         const obj = draft.objects[id];
@@ -2097,7 +2132,10 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       draft.selectedLayerIds = [];
       const { point, isLine } = action.payload;
       const rel0 = { x: 0, y: 0, mode: 'corner' as const };
-      const points = isLine ? [rel0, { x: 0, y: 0, mode: 'corner' as const }] : [rel0];
+      // For lines: [start, end]. For paths: [committed_anchor, preview_cursor].
+      // The preview cursor is the second point - it will be overwritten by UPDATE_DRAWING_PATH
+      // on every mouse move, while the first anchor stays fixed.
+      const points = isLine ? [rel0, { x: 0, y: 0, mode: 'corner' as const }] : [rel0, { x: 0, y: 0, mode: 'corner' as const }];
       draft.drawingPath = {
         id: nanoid(), type: 'path',
         isLine,
@@ -2114,13 +2152,48 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
     case 'UPDATE_DRAWING_PATH': {
       const dp = draft.drawingPath;
       if (!dp) return;
-      const p = action.payload.point;
-      const rel = { x: p.x - dp.x, y: p.y - dp.y, mode: 'corner' as const };
+      const { point: p, isDrag } = action.payload;
+      const rel = { x: p.x - dp.x, y: p.y - dp.y, mode: 'corner' as const as 'corner' | 'free' | 'aligned' | 'mirror' };
       if (dp.isLine) {
         dp.points[1] = rel;
       } else {
-        dp.points.push(rel);
+        // En lugar de solo agregar el punto final (que es para previsualizar el siguiente segmento),
+        // Si hay drag desde el ancla, debemos modificar handleOut del punto anterior y handleIn del "cursor".
+        // Para simplificar, la pluma clásica funciona así: click=anchor, drag=bezier para el ancla recién puesta.
+
+        // El último elemento es el cursor que persigue el mouse
+        // El penúltimo es el ancla real que pusimos antes.
+        if (dp.points.length >= 2 && isDrag) {
+          const anchorIdx = dp.points.length - 2;
+          const anchor = dp.points[anchorIdx];
+          const dist = Math.hypot(rel.x - anchor.x, rel.y - anchor.y);
+
+          if (dist > 2) {
+            // Estamos arrastrando desde el último ancla puesta
+            anchor.mode = 'mirror';
+            anchor.handleOut = { x: rel.x, y: rel.y };
+            // simétrico
+            anchor.handleIn = { x: anchor.x - (rel.x - anchor.x), y: anchor.y - (rel.y - anchor.y) };
+          }
+        }
+
+        // Reemplazar la previsualización final
+        dp.points[dp.points.length - 1] = rel;
       }
+      return;
+    }
+
+    case 'DRAW_PATH_ADD_POINT': {
+      const dp = draft.drawingPath;
+      if (!dp) return;
+      const p = action.payload.point;
+      const rel = { x: p.x - dp.x, y: p.y - dp.y, mode: 'corner' as const };
+
+      // La previsualización actual se convierte en el ancla definitiva
+      dp.points[dp.points.length - 1] = rel;
+
+      // Y pusheamos un nuevo punto de previsualización que perseguirá al cursor
+      dp.points.push({ ...rel });
       return;
     }
 
@@ -2129,6 +2202,10 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
       if (!dp) break;
 
       dp.closed = action.payload.closed;
+
+      if (!dp.isLine && dp.points.length >= 2) {
+        dp.points.pop(); // Remove the trailing preview cursor node
+      }
 
       if (dp.points.length >= 2) {
         const normalized = normalizePath(dp);
@@ -2162,11 +2239,13 @@ const editorRecipe = (draft: EditorState, action: EditorAction) => {
           }
           draft.selectedObjectIds = [normalized.id];
           draft.ui.focus = { type: 'selection', payload: { objectIds: draft.selectedObjectIds } };
-          draft.selectedPathNodes = [];
+
+          // Select all nodes so we can see the handles immediately
+          draft.selectedPathNodes = normalized.points.map((_, i) => ({ pathId: normalized.id, pointIndex: i }));
         }
       }
       draft.drawingPath = null;
-      draft.currentTool = 'select';
+      draft.currentTool = 'path-edit';
       timelineRowsChanged();
       return;
     }
@@ -2644,7 +2723,8 @@ const historyReducer = produce((state: History<EditorState>, action: EditorActio
     }
 
     default: {
-      const [nextPresent, patches, inversePatches] = produceWithPatches(currentState, (draft) => {
+      const baseState = state.transientPresent ?? currentState;
+      const [nextPresent, patches, inversePatches] = produceWithPatches(baseState, (draft) => {
         editorRecipe(draft, action);
       });
 
@@ -2653,7 +2733,6 @@ const historyReducer = produce((state: History<EditorState>, action: EditorActio
       const newGroupId = typeof historyMeta === 'object' ? historyMeta.groupId : undefined;
 
       if (isIgnored) {
-        console.log("---- HISTORY REDUCER IGNORED ----", action.type);
         state.transientPresent = nextPresent;
         if ((patches?.length ?? 0) > 0 || (inversePatches?.length ?? 0) > 0) {
           if (!state.transientEntry) {

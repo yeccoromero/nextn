@@ -1,0 +1,24 @@
+--- src/context/editor-context.tsx
++++ src/context/editor-context.tsx
+@@ -94,4 +94,5 @@
+       getObjects: () => stateRef.current.objects,
+       onUpdate: ({ currentTimeMs }) => {
++        console.log('[ANIM_DEBUG] Context onUpdate called. currentTimeMs:', currentTimeMs);
+         dispatch({ type: 'SET_TIMELINE_PLAYHEAD', payload: currentTimeMs, transient: true });
+       }
+@@ -106,4 +107,5 @@
+     if (!runtimeRef.current) return;
++    console.log('[ANIM_DEBUG] Context triggering runtime.load. playing:', activeState.timeline.playing);
+     const spec: TimelineSpec = {
+@@ -118,4 +120,5 @@
+       )
+     };
++    console.log('[ANIM_DEBUG] load spec tracks length:', spec.tracks.length);
+     runtimeRef.current.load(spec);
+   }, [activeState.timeline.durationMs, activeState.timeline.layers]);
+@@ -140,4 +143,5 @@
+   useEffect(() => {
+     if (!runtimeRef.current) return;
++    console.log('[ANIM_DEBUG] Context triggering play state. activeState.playing:', activeState.timeline.playing);
+     if (activeState.timeline.playing) {
+       runtimeRef.current.play();

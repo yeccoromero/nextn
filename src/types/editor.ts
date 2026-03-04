@@ -449,8 +449,9 @@ export type EditorAction = (
   | { type: 'BRING_TO_FRONT'; payload: { ids: string[] } }
   | { type: 'SEND_TO_BACK'; payload: { ids: string[] } }
   | { type: 'START_DRAWING_PATH'; payload: { point: { x: number; y: number }; isLine?: boolean } }
-  | { type: 'UPDATE_DRAWING_PATH'; payload: { point: { x: number; y: number } } }
+  | { type: 'UPDATE_DRAWING_PATH'; payload: { point: { x: number; y: number }; isDrag?: boolean } }
   | { type: 'HOVER_DRAWING_PATH'; payload: { point: { x: number, y: number } }, transient?: boolean }
+  | { type: 'DRAW_PATH_ADD_POINT'; payload: { point: { x: number; y: number } } }
   | { type: 'FINISH_DRAWING_PATH', payload: { closed: boolean } }
   | { type: 'UPDATE_PATH_POINT'; payload: { pathId: string; pointIndex: number; newPoint: Partial<BezierPoint> }; transient?: boolean }
   | { type: 'ADD_PATH_NODE'; payload: { pathId: string; segmentIndex: number; point: { x: number; y: number } } }
